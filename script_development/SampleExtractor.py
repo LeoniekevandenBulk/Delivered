@@ -29,12 +29,14 @@ of different patches used for training is in practice infinite (of course there 
 '''
 
 class SampleExtractor:
-    def __init__(self, patch_size, vol, seg, max_rotation=0, rnd_flipping=False):
+    def __init__(self, patch_size, vol, seg, labeling='lesion', max_rotation=0, gaussian_blur=False, elastic_deformation=False):
         self.patch_size = patch_size  # y,x
+        self.labeling = labeling
 
         # parameters used for data augmentation on-the-fly
         self.max_rotation = max_rotation  # float
-        self.rnd_flipping = rnd_flipping  # boolean
+        self.gaussian_blur = gaussian_blur # boolean
+        self.elastic_deformation = elastic_deformation # boolean
 
         ## load images, masks, and labels in memory
         ## This is very slow, so do only once per image
@@ -50,63 +52,62 @@ class SampleExtractor:
         print('3D volume'+vol+', '+str(len(self.lbl_max))+' slices with max lbl=0, 1, 2: '+
               str(len(self.lbl_max_0_idx))+', '+str(len(self.lbl_max_1_idx))+', '+str(len(self.lbl_max_2_idx)))
 
-        #def get_rnd_rotation(self):
-    #    ''' Return a 2x2 rotation matrix to rotate by a random angle phi.
-    #        The angle should in the range of -self.max_rotations to +self.max_rotations. '''
-    #    if self.max_rotation == 0:
-    #        return np.eye(2)  # identity matrix
-    #    else:
-    #        # create a random rotation matrix 'rot_mat' in the range of -'self.max_rotations' to +'self.max_rotations'
+    def get_rnd_rotation(self):
+        '''
+        Return a 2x2 rotation matrix to rotate by a random angle phi.
+        The angle should in the range of -self.max_rotations to +self.max_rotations.
+        '''
+        if self.max_rotation == 0:
+            return np.eye(2)  # identity matrix
+        else:
+            # create a random rotation matrix 'rot_mat' in the range of -'self.max_rotations' to +'self.max_rotations'
 
-    #        phi = np.random.uniform(-1, 1) * self.max_rotation * np.pi / 180
+            phi = np.random.uniform(-1, 1) * self.max_rotation * np.pi / 180
 
-    #        rot_mat = np.array([[np.cos(phi), -np.sin(phi)], [np.sin(phi), np.cos(phi)]])
+            rot_mat = np.array([[np.cos(phi), -np.sin(phi)], [np.sin(phi), np.cos(phi)]])
 
-    #        return rot_mat  # 2x2 np.array
-
-    #def rnd_flip(self, X):
-    #    ''' Return a flipped version of the input patch X.
-    #        The kind of flip and the probability that the event happens
-    #        should be based on a random event. '''
-
-        # write a function that randomly flips the input image
-
-    #    if np.random.random() < 0.5:
-    #        X = np.flipud(X)
-    #    else:
-    #        X = np.fliplr(X)
-
-    #    return X
+            return rot_mat  # 2x2 np.array
 
     def extract_sample(self, slice):
-        #ps_y, ps_x = self.patch_size
+        ps_y, ps_x = self.patch_size
 
-        X = self.vol_array[:, :, slice]
+        X = self.vol_array[:ps_y, :ps_x, slice]
 
-        Y = self.seg_array[:, :, slice]
+        if self.labeling == 'lesion':
+            Y = self.seg_array[:ps_y, :ps_x, slice]/2 # label only the lesions seg=0-1 -> Y=0 and seg=2->Y=1
+        elif self.labeling == 'liver':
+            Y = (self.seg_array[:ps_y, :ps_x, slice]+1)/2 # label only the liver seg=0 -> Y=0 and seg=1-2->Y=1
+        else:
+            Y = self.seg_array[:ps_y, :ps_x, slice]
 
-        ## get a random rotation matrix
-        #rot_mat = self.get_rnd_rotation()
+        # get a random rotation matrix
+        rot_mat = self.get_rnd_rotation()
 
-        ## Shift coordinate system to the center of the image
-        ## for more information http://stackoverflow.com/questions/20161175/how-can-i-use-scipy-ndimage-interpolation-affine-transform-to-rotate-an-image-ab
-        #c_in = loc_y, loc_x
-        #c_out = np.array([ps_y / 2, ps_x / 2])
-        #offset = c_in - c_out.dot(rot_mat)
+        # Shift coordinate system to the center of the image
+        # for more information http://stackoverflow.com/questions/20161175/how-can-i-use-scipy-ndimage-interpolation-affine-transform-to-rotate-an-image-ab
+        c_in = ps_y / 2, ps_x / 2
+        c_out = np.array([ps_y / 2, ps_x / 2])
+        offset = c_in - c_out.dot(rot_mat)
 
-        ## extract the patch and apply the rotation matrix
-        #X = affine_transform(self.vol_array[image], rot_mat.T, offset=offset, output_shape=(ps_y, ps_x),
-        #                     order=1) / 255.0
-        ## extract the label
-        #Y = int(self.lbl_array[image, loc_y, loc_x] > 0)
+        # extract the patch and apply the rotation matrix
+        X = affine_transform(X, rot_mat.T, offset=offset, output_shape=(ps_y, ps_x),
+                             order=1)
+        # also rotate the segmentation labels
+        Y = affine_transform(Y, rot_mat.T, offset=offset, output_shape=(ps_y, ps_x),
+                             order=1)
 
         X = X.astype(np.float32)
 
-        Y = Y.astype(np.int16)
+        Y = Y.astype(np.int32)
 
-        ## apply random flipping
-        #if self.rnd_flipping:
-        #    X = self.rnd_flip(X)
+        ## apply Gaussian blurring
+        #if self.gaussian_blur:
+        #    X =
+
+        ## apply elastic deformation
+        # if self.elastic_deformation:
+        #    X =
+        #    Y =
 
         return X, Y # 512x512 slice of each of the 3D arrays
 
