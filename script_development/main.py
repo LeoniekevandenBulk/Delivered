@@ -22,9 +22,7 @@ matplotlib.rcParams['xtick.labelsize'] = 30
 
 from SampleExtractor import SampleExtractor
 from BatchExtractor import BatchExtractor
-from unet import define_network
-from unet import define_updates
-from unet import define_predict
+import UNet
 from tools import get_file_list
 
 #plt.isinteractive()
@@ -209,12 +207,21 @@ weights = T.ftensor4('W')
 # Unet defined with pad='same' so input_size=output_size
 # The original Unet is defined without padding to not create border effects in case of tiling a large image.
 # Our images are not that large, and taken as a whole, so border effect are no concern here.
-network = define_network(inputs, input_size=patch_size,
+
+liverNetwork = UNet(inputs, input_size=patch_size,
                          depth=5,
                          branching_factor=6,  # 2^6 filters for first level, 2^7 for second, etc.
                          num_input_channels=1,
                          num_classes=2,
                          pad='same')
+
+lesionNetwork = UNet(inputs, input_size=patch_size,
+                         depth=5,
+                         branching_factor=6,  # 2^6 filters for first level, 2^7 for second, etc.
+                         num_input_channels=1,
+                         num_classes=2,
+                         pad='same')
+
 
 train_fn, validation_fn = define_updates(network, inputs, targets, weights, learning_rate=0.01, momentum=0.9, l2_lambda=1e-5)
 
