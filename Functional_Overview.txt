@@ -1,0 +1,130 @@
+--------------------
+Variables to define:
+--------------------
+	- Data folder location						where the data is stored, should be same per comp.
+	- train_percentage 						how much of data is used for training vs validation in percentage
+	- batch_size							how many patches per training iteration
+	- patch_size							size of patches as a tuple <width, height>
+	- augment_params						percentage per augmentation style per class how often it should apply them.
+									Example with semantically clearer names: [ [rotate=0.5, gauss_noise = 0.05, elastic_deform = 0.2], [rotate=0.0, gauss_noise = 0.15, elastic_deform = 0.4] ]
+									(here, the first set could be for liver centric patches, the second for non-liver centric ones or something like that)
+	- group_labels							The values associated with each group as a list of lists. F.e. [[0] [1,2]] places all pixels with value 0 in the first group, and 1 and 2 in the second.
+	- group_percentages						Denotes per group how much of the batch should be of that group, f.e. [0.5, 0.5] for equal distribution over two groups. Should sum to 1.
+	
+	- mask_learning_rate
+	- lesion_learning_rate
+
+---------------
+Component List:
+---------------
+
+1. Data splitter
+	Input: List of file names, float train_percentage
+	Output: 
+		Training set (list of file names as integers) 	- train_percentage x length(data)
+		Validation set (list of file names as integers)	- (1 - train_percentage) x length(data)
+		
+2. Batch Generator
+	Input: numpy scan data, numpy scan labels, int batch_size, <int, int> patch_size, group_labels, group_percentages
+	Output: img_batch = numpy array of size <batch_size, nr_channels_of_image, patch_size[0], patch_size[1]>
+		img_labels = numpy vector of size <batch_size>, containing the group each img belongs to (0, 1, 2...etc).
+		The amount of patches per group is according to group percentages.
+	
+3. Batch Augmenter
+	Input: img_batch, img_labels, augment_params
+	Output: augmented_batch, augmented_labels = img_batch which has been augmented according to the group they belong in and the corresponding augmentation parameters.
+	
+4. Network Trainer
+	Input: neur_network, augmented_batch, augmented_labels, learning_rate
+	Output: neur_network, best_error, auc
+	
+	Performs:
+		- Run batch through network
+		- Receive heatmap
+		- Train on heatmap and labels via learning_rate
+	
+5. Mask Network
+	Input: augmented_batch 		numpy array of size <batch_size, patch_size[0], patch_size[1], nr_channels_of_image>
+	Output: heatmap(s) with values between 0 and 1
+	
+6. Lesion Detection Network
+	Input: augmented_batch
+	Output: heatmap(s) with values between 0 and 1
+	
+7. Network Validator
+	Input: near_network, batch, labels
+	Output: error_report
+	
+	Performs:
+		- Run batch through network
+		- Receive heatmaps
+		- For each threshold [0.0:1.0:0.01] determine dice score (via Evaluator)
+			- Save best score of all thresholds
+			- Return best score of iteration
+	
+8. Evaluator
+	Input: neur_network, scan_data, scan_labels, threshold
+	Output: dice score for network with the given threshold
+	
+-----------------------------------------------
+Algorithm skeleton for training of one network:
+-----------------------------------------------
+
+data = Load Data (train)
+(train_set, val_set) =  Data Splitter (data)
+
+for each in range(nr_epochs):
+	train_copy = shuffled copy of train_set # shuffled because we want to avoid imposing some order, or overvaluing the last image
+	
+	# Train on training files
+	for file in train_copy:
+		(scan_data, scan_labels) = open(file) # Load image into memory
+		(img_batch, img_labels) = Batch Generator (scan_data, scan_labels, batch_size, patch_size, group_labels, group_percentages)
+		augmented_batch = Batch Augmenter (img_batch, img_labels, augment_params)
+		neur_network = Network Trainer(neur_network, augmented_batch, img_labels, x_learning_rate)
+		
+	# Test for performance at each epoch
+	for file in val_set:
+		(scan_data, scan_labels) = open(file)
+		
+		pad scan_data with required zeros to counter unet shrinking
+		
+		for each slice in scan: 
+			(batch, labels) = batchGenerator.getBatch(batch_size, scan_data, scan_labels, group_labels, group_percentages)
+			error_report = Network Tester(neur_network, batch, labels)
+
+		determine mean of error_report (dice score, best threshold etc.)
+		
+-------------------------------------------------		
+Algorithm skeleton for testing the whole network:
+-------------------------------------------------
+
+data = Load Data (test)
+
+for file in data:
+	scan = open(file)
+	for slice in file:
+		mask = mask_network(slice) > mask_threshold 		# mask_threshold is determined by training findings
+		
+		masked_slice = zeros(shape(slice))
+		masked_slice[mask == 1] = slice[mask == 1]			# Probably not actual syntax. Put non-liver to some value (0?) in slice
+		
+		lesion = lesion_detection_network(masked_slice) > lesion_threshold
+		
+		lesion * 2 											# Since 0 = not lesion and 2, not 1, is lesion
+		
+Do this for all slices for each person: segmentation!
+		
+	
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
