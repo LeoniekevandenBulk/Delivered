@@ -209,15 +209,15 @@ weights = T.ftensor4('W')
 # Our images are not that large, and taken as a whole, so border effect are no concern here.
 
 liverNetwork = UNetClass(inputs, 
-					input_size=(ps_x, ps_y), 
-					depth=5,
-					branching_factor=6, # 2^6 filters for first level, 2^7 for second, etc.
-					num_input_channels=1,
-					num_classes=2,
-					pad='same')
+					    input_size=(ps_x, ps_y),
+					    depth=5,
+					    branching_factor=6, # 2^6 filters for first level, 2^7 for second, etc.
+					    num_input_channels=1,
+					    num_classes=2,
+					    pad='same')
 
 lesionNetwork = UNetClass(inputs, 
-					input_size=(ps_x, ps_y),
+					    input_size=(ps_x, ps_y),
                          depth=5,
                          branching_factor=6,  # 2^6 filters for first level, 2^7 for second, etc.
                          num_input_channels=1,
@@ -247,6 +247,12 @@ the performance on our validation set. After plotting the results, the next epoc
 Try to optimize the parameters to get the best performance possible! (>90% accuracy should be possible!)
 '''
 
+'''
+TODO:
+#trainBatchGenerator (with augmentation)
+#valBatchGenerator (without augmentation)
+'''
+
 # plot learning curves
 fig = plt.figure(figsize=(30, 15))
 plt.xlabel('epoch', size=40)
@@ -258,6 +264,34 @@ tra_epoch = np.random.choice(len(tra_vol_batch), nr_epochs, replace=True)
 val_epoch = np.random.choice(len(val_vol_batch), nr_epochs, replace=True)
 # Main training loop
 for epoch in range(nr_epochs):
+    '''
+    TODO: for batch in range <amount of training batches(probably 65)>
+        #Training
+        vol = "../data/volume-{0}.nii".format(tra_vol{batchNo})
+        vol_proxy = nib.load(vol)
+        tra_vol_array = vol_proxy.get_data()
+            
+        seg = "../data/segmentation-{0}.nii".format(tra_vol{batchNo})
+        seg_proxy = nib.load(seg)
+        tra_seg_array = seg_proxy.get_data()
+        
+        #Validation
+        vol = "../data/volume-{0}.nii".format(val_vol{batchNo})
+        vol_proxy = nib.load(vol)
+        val_vol_array = vol_proxy.get_data()
+            
+        seg = "../data/segmentation-{0}.nii".format(val_vol{batchNo})
+        seg_proxy = nib.load(seg)
+        val_seg_array = seg_proxy.get_data()
+        
+        X_train, Y_train = trainBatchGenerator.get_batch(tra_vol_array, tra_seg_array)
+        train_fn with X,Y
+
+        X_val, Y_val = valBatchGenerator.get_batch()
+        val_fn with (X_val, Y_val)
+    '''
+
+
     print('Epoch {}'.format(epoch + 1))
     # Collect training samples
     itra = tra_epoch[epoch]
