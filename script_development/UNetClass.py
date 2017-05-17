@@ -53,7 +53,9 @@ class UNet:
 		nonlinearity = nonlinearities.rectify
 		
 		net = {}
+		#Moeten num_input_channels en input size omgedraaid? (zoals in de overview)
 		net['input'] = InputLayer(shape=(batch_size, num_input_channels, input_size[0],input_size[1]), input_var=input_var)
+		
 		def contraction(depth, deepest):
 			n_filters = _num_filters_for_depth(depth, branching_factor)
 			incoming = net['input'] if depth == 0 else net['pool{}'.format(depth-1)]
@@ -98,9 +100,9 @@ class UNet:
 	                                        nonlinearity=nonlinearity)
 		# Contraction
 		for d in range(depth):
-		#There is no pooling at the last layer
-		deepest = d == depth-1
-		contraction(d, deepest)
+			#There is no pooling at the last layer
+			deepest = d == depth-1
+			contraction(d, deepest)
 
 		# Expansion
 		for d in reversed(range(depth-1)):
@@ -118,6 +120,20 @@ class UNet:
 
 		print ('Network output shape '+ str(lasagne.layers.get_output_shape(net)))
 		return net
+		
+	def _num_filters_for_depth(depth, branching_factor):
+		return 2**(branching_factor+depth)
+		
+	def output_size_for_input(in_size, depth):
+	    in_size = np.array(in_size)
+	    in_size -= 4
+	    for _ in range(depth-1):
+	        in_size = in_size//2
+	        in_size -= 4
+	    for _ in range(depth-1):
+	        in_size = in_size*2
+	        in_size -= 4
+	    return in_size
 		
 	def define_updates(self, network, input_var, target_var, weight_var, learning_rate=0.01, momentum=0.9, l2_lambda=1e-5):
 	    params = lasagne.layers.get_all_params(network, trainable=True)
