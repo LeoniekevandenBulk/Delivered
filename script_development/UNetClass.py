@@ -34,7 +34,7 @@ The input is an image, the segmentation truth image, and a weight map. This can 
 in the image more important than others when determining the loss.
 '''
 
-class UNet:
+class UNetClass:
 	def __init__(self, input_var, input_size=(256,256),
                         depth=5,
                         branching_factor=6, #2^6 filters for first level, 2^7 for second, etc.
@@ -54,12 +54,12 @@ class UNet:
 		
 		net = {}
 		#Moeten num_input_channels en input size omgedraaid? (zoals in de overview)
-		net['input'] = InputLayer(shape=(batch_size, num_input_channels, input_size[0],input_size[1]), input_var=input_var)
+		net['input'] = InputLayer(shape=(self.batch_size, self.num_input_channels, self.input_size[0],self.input_size[1]), input_var=self.input_var)
 		
 		def contraction(depth, deepest):
-			n_filters = _num_filters_for_depth(depth, branching_factor)
+			n_filters = self._num_filters_for_depth(depth, branching_factor)
 			incoming = net['input'] if depth == 0 else net['pool{}'.format(depth-1)]
-	
+			
 			net['conv{}_1'.format(depth)] = Conv2DLayer(incoming, name = 'conv{}_1'.format(depth),
 									num_filters=n_filters, filter_size=3, pad=pad,
 									W=HeNormal(gain='relu'),
@@ -74,7 +74,7 @@ class UNet:
 				net['pool{}'.format(depth)] = MaxPool2DLayer(net['conv{}_2'.format(depth)], name = 'pool{}'.format(depth), pool_size=2, stride=2)
 			
 		def expansion(depth, deepest):
-			n_filters = _num_filters_for_depth(depth, branching_factor)
+			n_filters = self._num_filters_for_depth(depth, branching_factor)
 
 			incoming = net['conv{}_2'.format(depth+1)] if deepest else net['_conv{}_2'.format(depth+1)]
 
@@ -99,14 +99,14 @@ class UNet:
 	                                        W=HeNormal(gain='relu'),
 	                                        nonlinearity=nonlinearity)
 		# Contraction
-		for d in range(depth):
+		for d in range(self.depth):
 			#There is no pooling at the last layer
-			deepest = d == depth-1
+			deepest = d == self.depth-1
 			contraction(d, deepest)
 
 		# Expansion
-		for d in reversed(range(depth-1)):
-			deepest = d == depth-2
+		for d in reversed(range(self.depth-1)):
+			deepest = d == self.depth-2
 			expansion(d, deepest)
 
 		# Output layer
@@ -143,12 +143,11 @@ class UNet:
 	
 	    l2_loss = l2_lambda * regularize_network_params(network, l2)
 	
-	    train_metrics = _score_metrics(out, target_var, weight_var, l2_loss)
+	    train_metrics = self._score_metrics(out, target_var, weight_var, l2_loss)
 	    loss, acc, target_prediction, prediction = train_metrics
 	
-	    val_metrics = _score_metrics(test_out, target_var, weight_var, l2_loss)
+	    val_metrics = self._score_metrics(test_out, target_var, weight_var, l2_loss)
 	    t_loss, t_acc, t_target_prediction, t_prediction = val_metrics
-	
 	
 	    updates = lasagne.updates.nesterov_momentum(
 	            loss, params, learning_rate=learning_rate, momentum=momentum)

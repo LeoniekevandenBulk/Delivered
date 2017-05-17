@@ -39,7 +39,7 @@ def show_slices(vol_slices, seg_slices):
     for i, slice in enumerate(seg_slices):
         axes[1, i].imshow(slice.T, cmap="gray", origin="lower", clim=(0, 2))
 
-train_batch_dir='./data/Training_Batch_1'
+train_batch_dir='../data/Training_Batch_1'
 
 vol_batch = sorted(get_file_list(train_batch_dir, 'volume')[0])
 seg_batch = sorted(get_file_list(train_batch_dir, 'segmentation')[0])
@@ -208,14 +208,16 @@ weights = T.ftensor4('W')
 # The original Unet is defined without padding to not create border effects in case of tiling a large image.
 # Our images are not that large, and taken as a whole, so border effect are no concern here.
 
-liverNetwork = UNet(inputs, input_size=(ps_x, ps_y),
-                         depth=5,
-                         branching_factor=6,  # 2^6 filters for first level, 2^7 for second, etc.
-                         num_input_channels=1,
-                         num_classes=2,
-                         pad='same')
+liverNetwork = UNetClass(inputs, 
+					input_size=(ps_x, ps_y), 
+					depth=5,
+					branching_factor=6, # 2^6 filters for first level, 2^7 for second, etc.
+					num_input_channels=1,
+					num_classes=2,
+					pad='same')
 
-lesionNetwork = UNet(inputs, input_size=(ps_x, ps_y),
+lesionNetwork = UNetClass(inputs, 
+					input_size=(ps_x, ps_y),
                          depth=5,
                          branching_factor=6,  # 2^6 filters for first level, 2^7 for second, etc.
                          num_input_channels=1,
