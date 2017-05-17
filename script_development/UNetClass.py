@@ -52,52 +52,53 @@ class UNetClass:
 		self.batch_size = None
 		nonlinearity = nonlinearities.rectify
 		
-		net = {}
+		self.net = {}
 		#Moeten num_input_channels en input size omgedraaid? (zoals in de overview)
-		net['input'] = InputLayer(shape=(self.batch_size, self.num_input_channels, self.input_size[0],self.input_size[1]), input_var=self.input_var)
+		self.net['input'] = InputLayer(shape=(self.batch_size, self.num_input_channels, self.input_size[0],self.input_size[1]), input_var=self.input_var)
 		
 		def contraction(depth, deepest):
 			n_filters = self._num_filters_for_depth(depth, branching_factor)
-			incoming = net['input'] if depth == 0 else net['pool{}'.format(depth-1)]
+			incoming = self.net['input'] if depth == 0 else self.net['pool{}'.format(depth-1)]
 			
-			net['conv{}_1'.format(depth)] = Conv2DLayer(incoming, name = 'conv{}_1'.format(depth),
+			self.net['conv{}_1'.format(depth)] = Conv2DLayer(incoming, name = 'conv{}_1'.format(depth),
 									num_filters=n_filters, filter_size=3, pad=pad,
 									W=HeNormal(gain='relu'),
 									nonlinearity=nonlinearity)
 	
-			net['conv{}_2'.format(depth)] = Conv2DLayer(net['conv{}_1'.format(depth)], name = 'conv{}_2'.format(depth),
+			self.net['conv{}_2'.format(depth)] = Conv2DLayer(self.net['conv{}_1'.format(depth)], name = 'conv{}_2'.format(depth),
 									num_filters=n_filters, filter_size=3, pad=pad,
 									W=HeNormal(gain='relu'),
 									nonlinearity=nonlinearity)
 	
 			if not deepest:
-				net['pool{}'.format(depth)] = MaxPool2DLayer(net['conv{}_2'.format(depth)], name = 'pool{}'.format(depth), pool_size=2, stride=2)
+				self.net['pool{}'.format(depth)] = MaxPool2DLayer(self.net['conv{}_2'.format(depth)], name = 'pool{}'.format(depth), pool_size=2, stride=2)
 			
 		def expansion(depth, deepest):
 			n_filters = self._num_filters_for_depth(depth, branching_factor)
 
-			incoming = net['conv{}_2'.format(depth+1)] if deepest else net['_conv{}_2'.format(depth+1)]
+			incoming = self.net['conv{}_2'.format(depth+1)] if deepest else self.net['_conv{}_2'.format(depth+1)]
 
 			upscaling = Upscale2DLayer(incoming, 4)
-			net['upconv{}'.format(depth)] = Conv2DLayer(upscaling, name = 'upconv{}_1'.format(depth),
+			self.net['upconv{}'.format(depth)] = Conv2DLayer(upscaling, name = 'upconv{}_1'.format(depth),
 									num_filters=n_filters, filter_size=2, stride=2,
 	                                        W=HeNormal(gain='relu'),
 	                                        nonlinearity=nonlinearity)
 
-			net['bridge{}'.format(depth)] = ConcatLayer([
-	                                        net['upconv{}'.format(depth)],
-									net['conv{}_2'.format(depth)]], name = 'bridge{}'.format(depth),
+			self.net['bridge{}'.format(depth)] = ConcatLayer([
+	                                        self.net['upconv{}'.format(depth)],
+									self.net['conv{}_2'.format(depth)]], name = 'bridge{}'.format(depth),
 									axis=1, cropping=[None, None, 'center', 'center'])
 
-			net['_conv{}_1'.format(depth)] = Conv2DLayer(net['bridge{}'.format(depth)], name = '_conv{}_1'.format(depth),
+			self.net['_conv{}_1'.format(depth)] = Conv2DLayer(self.net['bridge{}'.format(depth)], name = '_conv{}_1'.format(depth),
 									num_filters=n_filters, filter_size=3, pad=pad,
 	                                        W=HeNormal(gain='relu'),
 	                                        nonlinearity=nonlinearity)
 
-			net['_conv{}_2'.format(depth)] = Conv2DLayer(net['_conv{}_1'.format(depth)], name = '_conv{}_2'.format(depth),
+			self.net['_conv{}_2'.format(depth)] = Conv2DLayer(self.net['_conv{}_1'.format(depth)], name = '_conv{}_2'.format(depth),
 									num_filters=n_filters, filter_size=3, pad=pad,
 	                                        W=HeNormal(gain='relu'),
 	                                        nonlinearity=nonlinearity)
+		
 		# Contraction
 		for d in range(self.depth):
 			#There is no pooling at the last layer
@@ -115,16 +116,16 @@ class UNetClass:
 		# http://stackoverflow.com/questions/36185639/load-a-pretrained-caffe-model-to-lasagne
 		# net['out'] = Conv2DLayer(net['_conv0_2'], num_filters=num_classes, filter_size=(1,1), pad='valid',
 		#                                nonlinearity=None)
-		net = Conv2DLayer(net['_conv0_2'], num_filters=num_classes, filter_size=(1,1), pad=pad,
+		self.net = Conv2DLayer(self.net['_conv0_2'], num_filters=num_classes, filter_size=(1,1), pad=pad,
                                     nonlinearity=None)
 
-		print ('Network output shape '+ str(lasagne.layers.get_output_shape(net)))
-		return net
+		print ('Network output shape '+ str(lasagne.layers.get_output_shape(self.net)))
 		
-	def _num_filters_for_depth(depth, branching_factor):
+		
+	def _num_filters_for_depth(self,depth, branching_factor):
 		return 2**(branching_factor+depth)
 		
-	def output_size_for_input(in_size, depth):
+	def output_size_for_input(self,in_size, depth):
 	    in_size = np.array(in_size)
 	    in_size -= 4
 	    for _ in range(depth-1):
@@ -135,13 +136,13 @@ class UNetClass:
 	        in_size -= 4
 	    return in_size
 		
-	def define_updates(self, network, input_var, target_var, weight_var, learning_rate=0.01, momentum=0.9, l2_lambda=1e-5):
-	    params = lasagne.layers.get_all_params(network, trainable=True)
+	def define_updates(self, input_var, target_var, weight_var, learning_rate=0.01, momentum=0.9, l2_lambda=1e-5):
+	    params = lasagne.layers.get_all_params(self.net, trainable=True)
 	
-	    out = lasagne.layers.get_output(network)
-	    test_out = lasagne.layers.get_output(network, deterministic=True)
+	    out = lasagne.layers.get_output(self.net)
+	    test_out = lasagne.layers.get_output(self.net, deterministic=True)
 	
-	    l2_loss = l2_lambda * regularize_network_params(network, l2)
+	    l2_loss = l2_lambda * regularize_network_params(self.net, l2)
 	
 	    train_metrics = self._score_metrics(out, target_var, weight_var, l2_loss)
 	    loss, acc, target_prediction, prediction = train_metrics
@@ -161,7 +162,7 @@ class UNetClass:
 	    return train_fn, val_fn
 					
 	def define_predict(self, network, input_var):
-	    params = lasagne.layers.get_all_params(network, trainable=True)
+	    #params = lasagne.layers.get_all_params(network, trainable=True)
 	    out = lasagne.layers.get_output(network, deterministic=True)
 	    out_flat = out.dimshuffle(1,0,2,3).flatten(ndim=2).dimshuffle(1,0)
 	    prediction = lasagne.nonlinearities.softmax(out_flat)

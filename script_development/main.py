@@ -22,7 +22,7 @@ matplotlib.rcParams['xtick.labelsize'] = 30
 
 from SampleExtractor import SampleExtractor
 from BatchExtractor import BatchExtractor
-import UNetClass
+from UNetClass import UNetClass
 from tools import get_file_list
 
 #plt.isinteractive()
@@ -225,7 +225,8 @@ lesionNetwork = UNetClass(inputs,
                          pad='same')
 
 
-train_fn, validation_fn = define_updates(network, inputs, targets, weights, learning_rate=0.01, momentum=0.9, l2_lambda=1e-5)
+
+train_fn, validation_fn = lesionNetwork.define_updates( inputs, targets, weights)#, learning_rate=0.01, momentum=0.9, l2_lambda=1e-5)
 
 '''
 Create the
