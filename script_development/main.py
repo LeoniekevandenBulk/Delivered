@@ -216,17 +216,18 @@ liverNetwork = UNetClass(inputs,
 					    num_classes=2,
 					    pad='same')
 
+#outputs van liverNetwork worden inputs van lesionNetwork
 lesionNetwork = UNetClass(inputs, 
 					    input_size=(ps_x, ps_y),
-                         depth=5,
-                         branching_factor=6,  # 2^6 filters for first level, 2^7 for second, etc.
-                         num_input_channels=1,
-                         num_classes=2,
-                         pad='same')
+                        depth=5,
+                        branching_factor=6,  # 2^6 filters for first level, 2^7 for second, etc.
+                        num_input_channels=1,
+                        num_classes=2,
+                        pad='same')
 
 
 
-train_fn, validation_fn = lesionNetwork.define_updates( inputs, targets, weights)#, learning_rate=0.01, momentum=0.9, l2_lambda=1e-5)
+train_fn, validation_fn = liverNetwork.define_updates(inputs, targets, weights)#, learning_rate=0.01, momentum=0.9, l2_lambda=1e-5)
 
 '''
 Create the
@@ -267,21 +268,21 @@ for epoch in range(nr_epochs):
     '''
     TODO: for batch in range <amount of training batches(probably 65)>
         #Training
-        vol = "../data/volume-{0}.nii".format(tra_vol{batchNo})
-        vol_proxy = nib.load(vol)
+        tra_vol = "../data/volume-{0}.nii".format(tra_vol{batchNo})
+        tra_vol_proxy = nib.load(vol)
         tra_vol_array = vol_proxy.get_data()
             
-        seg = "../data/segmentation-{0}.nii".format(tra_vol{batchNo})
-        seg_proxy = nib.load(seg)
+        tra_seg = "../data/segmentation-{0}.nii".format(tra_vol{batchNo})
+        tra_seg_proxy = nib.load(seg)
         tra_seg_array = seg_proxy.get_data()
         
         #Validation
-        vol = "../data/volume-{0}.nii".format(val_vol{batchNo})
-        vol_proxy = nib.load(vol)
+        val_vol = "../data/volume-{0}.nii".format(val_vol{batchNo})
+        val_vol_proxy = nib.load(vol)
         val_vol_array = vol_proxy.get_data()
             
-        seg = "../data/segmentation-{0}.nii".format(val_vol{batchNo})
-        seg_proxy = nib.load(seg)
+        val_seg = "../data/segmentation-{0}.nii".format(val_vol{batchNo})
+        val_seg_proxy = nib.load(seg)
         val_seg_array = seg_proxy.get_data()
         
         X_train, Y_train = trainBatchGenerator.get_batch(tra_vol_array, tra_seg_array)
@@ -358,7 +359,7 @@ for epoch in range(nr_epochs):
     if np.mean(val_accs) > best_val_acc:
         best_val_acc = np.mean(val_accs)
         # save network
-        params = L.get_all_param_values(network)
+        params = L.get_all_param_values(liverNetwork)
         np.savez(os.path.join('./', network_name + '.npz'), params=params)
 
     # plot learning curves
