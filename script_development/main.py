@@ -20,161 +20,41 @@ import matplotlib.pyplot as plt
 matplotlib.rcParams['figure.figsize'] = (40, 24)
 matplotlib.rcParams['xtick.labelsize'] = 30
 
-from SampleExtractor import SampleExtractor
-from BatchExtractor import BatchExtractor
+#from BatchGenerator2 import BatchGenerator
 from UNetClass import UNetClass
 from tools import get_file_list
+
+import random
 
 #plt.isinteractive()
 
 '''
-Data loading and visualization
+Data loading
 '''
-def show_slices(vol_slices, seg_slices):
-    """ Function to display row of image slices """
-    nslice = len(vol_slices)
-    fig, axes = plt.subplots(2, nslice)
-    for i, slice in enumerate(vol_slices):
-        axes[0, i].imshow(slice.T, cmap="gray", origin="lower")
-    for i, slice in enumerate(seg_slices):
-        axes[1, i].imshow(slice.T, cmap="gray", origin="lower", clim=(0, 2))
 
-train_batch_dir='../data/Training_Batch_1'
+train_batch_dir='../data/Training_Batch'
 
 vol_batch = sorted(get_file_list(train_batch_dir, 'volume')[0])
 seg_batch = sorted(get_file_list(train_batch_dir, 'segmentation')[0])
 
-show_volumes = False
-if show_volumes:
-    for i, (vol, seg) in enumerate(zip(vol_batch, seg_batch)):
-        #i = 0
-        #vol = vol_batch_1[i]
-        #seg = seg_batch_1[i]
-        #vol_filename = vol_batch_1[i]
-        vol_proxy = nib.load(vol)
-        vol_array = vol_proxy.get_data()
-        #seg_filename = seg_batch_1[9]
-        seg_proxy = nib.load(seg)
-        seg_array = seg_proxy.get_data()
-        name=vol.split('-')[1].split('.')[0]
-        mid_0 = int(vol_array.shape[0]/2)
-        mid_1 = int(vol_array.shape[1]/2)
-        mid_2 = int(vol_array.shape[2]/2)
-        vol_slice_0 = vol_array[mid_0, :, :]
-        vol_slice_1 = vol_array[:, mid_1, :]
-        vol_slice_2 = vol_array[:, :, mid_2]
-        seg_slice_0 = seg_array[mid_0, :, :]
-        seg_slice_1 = seg_array[:, mid_1, :]
-        seg_slice_2 = seg_array[:, :, mid_2]
-        show_slices([vol_slice_0, vol_slice_1, vol_slice_2], [seg_slice_0, seg_slice_1, seg_slice_2])
-        plt.suptitle("Center slices for 3D volume "+vol, size=40)
-        plt.show(block=False)
-        plt.pause(0.5)
-
 '''
-Creating and testing the basic random sample extractor
+Split the 3D volumes equally in a training and validation set.
 '''
 
-# Implement the get_random_sample_from_class() function in the class above. You can use the functions below to test if the output makes sense.
+nr_volumes = len(vol_batch)
+vol_list = range(nr_volumes)
+random.shuffle(vol_list)
 
-# Here we test the patch extractor without random rotation and without flipping.
-test_sample_extractor = False
-if test_sample_extractor:
-    # define a random sample extractor object for the first 3D volume
-    random_sample_extractor = SampleExtractor((256,512), vol_batch[0], seg_batch[0], labeling='liver', max_rotation=0, gaussian_blur=False, elastic_deformation=False)
-    # Execute the following cells several times to see if the results you get make sense.
-    X_0 = []
-    Y_0 = []
-    for i in range(5):
-        X, Y = random_sample_extractor.get_random_sample_from_class(0)
-        X_0.append(X)
-        Y_0.append(Y)
-    show_slices(X_0, Y_0)
-    plt.suptitle("Label=0 slices: no liver", size=40)
-    plt.show(block=False)
-    X_1 = []
-    Y_1 = []
-    for i in range(5):
-        X, Y = random_sample_extractor.get_random_sample_from_class(1)
-        X_1.append(X)
-        Y_1.append(Y)
-    show_slices(X_1, Y_1)
-    plt.suptitle("Label=1 slices: liver without lesions", size=40)
-    plt.show(block=False)
-    X_2 = []
-    Y_2 = []
-    for i in range(5):
-        X, Y = random_sample_extractor.get_random_sample_from_class(2)
-        X_2.append(X)
-        Y_2.append(Y)
-    show_slices(X_2, Y_2)
-    plt.suptitle("Label=2 slices: liver lesions", size=40)
-    plt.show(block=False)
+validation_percentage = 0.5
+nr_val_volumes = int(ceil(len(vol_batch)*validation_percentage))
+nr_tra_volumes = nr_volumes - nr_val_volumes
 
-
-# ## Implement rotation augmentation
-#
-# Implement the ```get_rnd_rotation()``` function in the class above.
-# You can use the functions below to test if the output makes sense.
-
-
-#Test if we can generate instances of the sample extractor class for all 3D volumes
-#sample_extractors=[]
-#for i, (vol, seg) in enumerate(zip(tra_vol_batch_1, tra_seg_batch_1)):
-#    sample_extractor = SampleExtractor((512, 512),vol, seg, max_rotation=0, rnd_flipping=False)
-#    exec "sample_extractor_%s=sample_extractor" % (i)
-#    sample_extractors.append(sample_extractor)
-
-test_rotation = False
-if test_rotation:
-    #Now we enable rotation, and test it again.
-    random_sample_extractor = SampleExtractor((512, 512), vol_batch[0], seg_batch[0], max_rotation=10, elastic_deformation=False)
-    X_0 = []
-    Y_0 = []
-    for i in range(5):
-        X, Y = random_sample_extractor.get_random_sample_from_class(0)
-        X_0.append(X)
-        Y_0.append(Y)
-    show_slices(X_0, Y_0)
-    plt.suptitle("Label=0 slices: no liver", size=40)
-    plt.show(block=False)
-    X_1 = []
-    Y_1 = []
-    for i in range(5):
-        X, Y = random_sample_extractor.get_random_sample_from_class(1)
-        X_1.append(X)
-        Y_1.append(Y)
-    show_slices(X_1, Y_1)
-    plt.suptitle("Label=1 slices: liver without lesions", size=40)
-    plt.show(block=False)
-    X_2 = []
-    Y_2 = []
-    for i in range(5):
-        X, Y = random_sample_extractor.get_random_sample_from_class(2)
-        X_2.append(X)
-        Y_2.append(Y)
-    show_slices(X_2, Y_2)
-    plt.suptitle("Label=2 slices: liver lesions", size=40)
-    plt.show(block=False)
-
-
-'''
-Split the data in a training and validation set.
-'''
-
-validation_percentage = 0.3
-n_validation_images = int(ceil(len(vol_batch)*validation_percentage))
 
 # use the first images as validation
-val_vol_batch = vol_batch[0:n_validation_images]
-val_seg_batch = seg_batch[0:n_validation_images]
+tra_vol_list = vol_list[0:nr_tra_volumes]
+val_vol_list = vol_list[nr_tra_volumes:]
 
-# the rest as training
-tra_vol_batch = vol_batch[n_validation_images:]
-tra_seg_batch = seg_batch[n_validation_images:]
-
-print("nr of training images: " + str(len(tra_vol_batch)) + "\nnr of validation images: " + str(len(val_vol_batch)))
-
+print("nr of training images: " + str(len(tra_vol_list)) + "\nnr of validation images: " + str(len(val_vol_list)))
 
 '''
 Set parameters
