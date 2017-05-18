@@ -49,12 +49,11 @@ validation_percentage = 0.5
 nr_val_volumes = int(ceil(len(vol_batch)*validation_percentage))
 nr_tra_volumes = nr_volumes - nr_val_volumes
 
-
 # use the first images as validation
-tra_vol_list = vol_list[0:nr_tra_volumes]
-val_vol_list = vol_list[nr_tra_volumes:]
+tra_list = vol_list[0:nr_tra_volumes]
+val_list = vol_list[nr_tra_volumes:]
 
-print("nr of training images: " + str(len(tra_vol_list)) + "\nnr of validation images: " + str(len(val_vol_list)))
+print("nr of training 3D volumes: " + str(len(tra_list)) + "\nnr of validation 3D volumes: " + str(len(val_list)))
 
 '''
 Set parameters
@@ -105,8 +104,6 @@ lesionNetwork = UNetClass(inputs,
                         num_classes=2,
                         pad='same')
 
-
-
 train_fn, validation_fn = liverNetwork.define_updates(inputs, targets, weights)#, learning_rate=0.01, momentum=0.9, l2_lambda=1e-5)
 
 '''
@@ -120,12 +117,7 @@ Create the
 random.seed(0)
 
 '''
-Main training loop
-
-Now that we have a pipeline for creating batches on the fly, we can now train our fully convolutional network!
-The following code trains for a certain amount of time, defined in the parameters section above, and will then evaluate
-the performance on our validation set. After plotting the results, the next epoch will start.
-Try to optimize the parameters to get the best performance possible! (>90% accuracy should be possible!)
+Training
 '''
 
 '''
@@ -140,37 +132,47 @@ plt.xlabel('epoch', size=40)
 plt.ylabel('loss', size=40)
 fig.labelsize=40
 
-# Pick every epoch a random 3D volume for training and for validation
-tra_epoch = np.random.choice(len(tra_vol_batch), nr_epochs, replace=True)
-val_epoch = np.random.choice(len(val_vol_batch), nr_epochs, replace=True)
 # Main training loop
 for epoch in range(nr_epochs):
     '''
     TODO: for batch in range <amount of training batches(probably 65)>
+    '''
+    for batch in range(nr_tra_volumes):
+        '''
+        Load one pair of 3D volumes, one for training and one for validation
+        '''
         #Training
-        tra_vol = "../data/volume-{0}.nii".format(tra_vol{batchNo})
-        tra_vol_proxy = nib.load(vol)
-        tra_vol_array = vol_proxy.get_data()
+        tra_vol = train_batch_dir + "/volume-{0}.nii".format(tra_list[batch])
+        tra_vol_proxy = nib.load(tra_vol)
+        tra_vol_array = tra_vol_proxy.get_data()
             
-        tra_seg = "../data/segmentation-{0}.nii".format(tra_vol{batchNo})
-        tra_seg_proxy = nib.load(seg)
-        tra_seg_array = seg_proxy.get_data()
+        tra_seg = train_batch_dir + "/segmentation-{0}.nii".format(tra_list[batch])
+        tra_seg_proxy = nib.load(tra_seg)
+        tra_seg_array = tra_seg_proxy.get_data()
         
         #Validation
-        val_vol = "../data/volume-{0}.nii".format(val_vol{batchNo})
-        val_vol_proxy = nib.load(vol)
-        val_vol_array = vol_proxy.get_data()
+        val_vol = train_batch_dir + "/volume-{0}.nii".format(val_list[batch])
+        val_vol_proxy = nib.load(val_vol)
+        val_vol_array = val_vol_proxy.get_data()
             
-        val_seg = "../data/segmentation-{0}.nii".format(val_vol{batchNo})
-        val_seg_proxy = nib.load(seg)
-        val_seg_array = seg_proxy.get_data()
+        val_seg = train_batch_dir + "/segmentation-{0}.nii".format(val_list[batch])
+        val_seg_proxy = nib.load(val_seg)
+        val_seg_array = val_seg_proxy.get_data()
         
-        X_train, Y_train = trainBatchGenerator.get_batch(tra_vol_array, tra_seg_array)
-        train_fn with X,Y
+        X_tra, Y_tra = trainBatchGenerator.get_batch(tra_vol_array, tra_seg_array)
+        weights_map = np.ndarray(X_tra.shape)
+        weights_map.fill(1)
+        print 'train X', X_tra.shape, X_tra.dtype, X_tra.min(), X_tra.max(), np.any(np.isnan(X_tra))
+        print 'train Y', Y_tra.shape, Y_tra.dtype, Y_tra.min(), Y_tra.max(), np.any(np.isnan(Y_tra))
+        print 'train weights_map', weights_map.shape, weights_map.dtype, weights_map.min(), weights_map.max(), np.any(np.isnan(Y))
+        loss, l2_loss, accuracy, target_prediction, prediction = \
+            train_fn(X_tra.astype(np.float32), Y_tra.astype(np.int32), weights_map.astype(np.float32))
 
         X_val, Y_val = valBatchGenerator.get_batch()
-        val_fn with (X_val, Y_val)
-    '''
+        weights_map = np.ndarray(X_val.shape)
+        weights_map.fill(1)
+        loss, l2_loss, accuracy, target_prediction, prediction = \
+            validation_fn(X_val.astype(np.float32), Y_val.astype(np.int16), weights_map.astype(np.float32))
 
 
     print('Epoch {}'.format(epoch + 1))
