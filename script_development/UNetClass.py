@@ -119,7 +119,7 @@ class UNetClass:
 		self.net = Conv2DLayer(self.net['_conv0_2'], num_filters=num_classes, filter_size=(1,1), pad=pad,
                                     nonlinearity=None)
 
-		print ('Network output shape '+ str(lasagne.layers.get_output_shape(self.net)))
+		print ('Network output shape {}'.format(str(lasagne.layers.get_output_shape(self.net))))
 		
 		
 	def _num_filters_for_depth(self,depth, branching_factor):
@@ -161,9 +161,9 @@ class UNetClass:
 	
 	    return train_fn, val_fn
 					
-	def define_predict(self, network, input_var):
+	def define_predict(self, input_var):
 	    #params = lasagne.layers.get_all_params(network, trainable=True)
-	    out = lasagne.layers.get_output(network, deterministic=True)
+	    out = lasagne.layers.get_output(self.net, deterministic=True)
 	    out_flat = out.dimshuffle(1,0,2,3).flatten(ndim=2).dimshuffle(1,0)
 	    prediction = lasagne.nonlinearities.softmax(out_flat)
 	
