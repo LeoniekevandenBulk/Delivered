@@ -10,7 +10,7 @@ class BatchGenerator:
     def __init__(self, augment=True):
         self.augment = augment
 
-    def get_batch(self, vol_list, batch_dir, batch_size, patch_size, out_size, img_center, group_labels="lesion", group_percentages=(0.5, 0.5)):
+    def get_batch(self, vol_list, batch_dir, batch_size, patch_size, out_size, img_center, group_labels="liver", group_percentages=(0.5, 0.5)):
 
         ps_x, ps_y = patch_size
         out_x, out_y = out_size
@@ -66,11 +66,8 @@ class BatchGenerator:
             seg_group_labels = seg_array.astype(np.int32) // 2 #[x-1 if x > 0 else x for x in np.nditer(seg_array)]
 
         lbl_max = np.max(np.max(seg_group_labels, axis=1), axis=0)  # maximum label per slice
-        print lbl_max
         self.lbl_max_0_idx = np.where(lbl_max == 0)[0]  # slice indices of slices with maximum label 0
         self.lbl_max_1_idx = np.where(lbl_max == 1)[0]  # slice indices of slices with maximum label 1
-
-        #print self.lbl_max_1_idx
 
         return seg_group_labels
 
