@@ -83,9 +83,9 @@ img_center = [256, 256]
 
 # Training
 learning_rate = 0.1
-nr_epochs = 10
-nr_batches = 1
-batch_size = 20
+nr_epochs = 1
+nr_batches = 2
+batch_size = 10
 max_rotation = 10
 gaussian_blur = False
 elastic_deformation = True
@@ -147,9 +147,9 @@ lesionNetwork = UNetClass(inputs,
                         pad='valid')
 
 print("Creating Theano training and validation functions for liver network ...")
-liverNetwork.train_fn, liverNetwork.val_fn = liverNetwork.define_updates(inputs, targets, weights)
+#liverNetwork.train_fn, liverNetwork.val_fn = liverNetwork.define_updates(inputs, targets, weights)
 print("Creating Theano training and validation functions for lesion network ...")
-lesionNetwork.train_fn, lesionNetwork.val_fn = lesionNetwork.define_updates(inputs, targets, weights)
+#lesionNetwork.train_fn, lesionNetwork.val_fn = lesionNetwork.define_updates(inputs, targets, weights)
 
 
 '''
@@ -182,14 +182,14 @@ for epoch in range(nr_epochs):
         print('Batch {}/{}'.format(batch + 1, nr_batches))
         # Training
         X_tra, Y_tra = trainBatchGenerator.get_batch(tra_list, train_batch_dir, batch_size,
-                                     patch_size, out_size, img_center, group_labels=((0,1),2), group_percentages=(0.5,0.5))
+                                     patch_size, out_size, img_center, group_labels="lesion", group_percentages=(0.5,0.5))
         loss, l2_loss, accuracy, target_prediction, prediction = lesionTrainer.train_batch(X_tra, Y_tra, verbose=True)
         print 'training loss, accuracy', loss, accuracy
         tra_losses.append(loss)
         tra_accs.append(accuracy)
         # Validation
         X_val, Y_val = valBatchGenerator.get_batch(val_list, train_batch_dir, batch_size,
-                                     patch_size, out_size, img_center, group_labels=((0,1),2), group_percentages=(0.5,0.5))
+                                     patch_size, out_size, img_center, group_labels="lesion", group_percentages=(0.5,0.5))
         loss, l2_loss, accuracy, target_prediction, prediction = lesionTrainer.validate_batch(X_val, Y_val, verbose=True)
         print 'validation loss, accuracy', loss, accuracy
         val_losses.append(loss)
