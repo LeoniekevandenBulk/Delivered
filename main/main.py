@@ -89,7 +89,8 @@ img_center = [256, 256]
 # Training
 learning_rate = 0.1
 nr_epochs = 1
-nr_batches = 3
+nr_train_batches = 3
+nr_val_batches = 3
 batch_size = 5
 max_rotation = 10
 gaussian_blur = False
@@ -103,9 +104,6 @@ lesion_network_name = 'lesion_network_LiTS'
 '''
 Creating the batch generators and testing the preprocessing
 '''
-
-trainBatchGenerator = BatchGenerator(augment=True) # (with augmentation)
-valBatchGenerator = BatchGenerator(augment=False) # (without augmentation)
 
 # Implement the get_random_sample_from_class() function in the class above. You can use the functions below to test if the output makes sense.
 
@@ -170,6 +168,10 @@ fig.labelsize=40
 liverTrainer = Trainer(liverNetwork, "liverNet", tra_list, val_list, learning_rate=learning_rate, patch_size=patch_size)
 lesionTrainer = Trainer(lesionNetwork, "lesionNet", tra_list, val_list, learning_rate=learning_rate, patch_size=patch_size)
 
+# Creation of generators
+trainBatchGenerator = BatchGenerator(augment=True) # (with augmentation)
+valBatchGenerator = BatchGenerator(augment=False) # (without augmentation)
+
 # Main training loop
 tra_loss_lst = []
 val_loss_lst = []
@@ -183,7 +185,7 @@ for epoch in range(nr_epochs):
     tra_accs = []
     val_losses = []
     val_accs = []
-    for batch in range(nr_batches):
+    for batch in range(nr_train_batches):
         print('Batch {}/{}'.format(batch + 1, nr_batches))
         #Training batch generation
         X_tra, Y_tra = trainBatchGenerator.get_batch(tra_list, train_batch_dir, batch_size,
@@ -198,6 +200,9 @@ for epoch in range(nr_epochs):
         print 'training loss, accuracy', loss, accuracy
         tra_losses.append(loss)
         tra_accs.append(accuracy)
+
+
+    for batch in range(nr_val_batches):
         # Validation
         X_val, Y_val = valBatchGenerator.get_batch(val_list, train_batch_dir, batch_size,
                                      patch_size, out_size, img_center, group_labels="lesion", group_percentages=(0.5,0.5))
