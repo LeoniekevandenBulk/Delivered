@@ -24,9 +24,10 @@ import matplotlib.pyplot as plt
 matplotlib.rcParams['figure.figsize'] = (40, 24)
 matplotlib.rcParams['xtick.labelsize'] = 30
 
-from BatchGenerator import BatchGenerator
 from UNetClass import UNetClass
 from Trainer import Trainer
+from BatchGenerator import BatchGenerator
+from BatchAugmenter import BatchAugmenter
 from tools import get_file_list
 from tools import output_size_for_input
 from tools import show_slices
@@ -184,9 +185,15 @@ for epoch in range(nr_epochs):
     val_accs = []
     for batch in range(nr_batches):
         print('Batch {}/{}'.format(batch + 1, nr_batches))
-        # Training
+        #Training batch generation
         X_tra, Y_tra = trainBatchGenerator.get_batch(tra_list, train_batch_dir, batch_size,
                                      patch_size, out_size, img_center, group_labels="lesion", group_percentages=(0.5,0.5))
+
+        #Data augmentation
+        #myAugmenter = BatchAugmenter(X_tra, Y_tra, [[0.1,0.8,0.9],[0.1,0.8,0.6]])
+        #X_tra, Y_tra = myAugmenter.getAugmentation()
+
+        #Training
         loss, l2_loss, accuracy, target_prediction, prediction = lesionTrainer.train_batch(X_tra, Y_tra, verbose=True)
         print 'training loss, accuracy', loss, accuracy
         tra_losses.append(loss)
