@@ -114,6 +114,8 @@ class BatchGenerator:
         if sum_label_outside > 10:
             print("Warning: sum labels outside output crop is {}".format(sum_label_outside))
 
-        X = np.clip(X, -200, 200) / 400 + 1
+        # Clip, then zero mean std 1 normalization
+        X = np.clip(X, -200, 300)
+        X = (X - X.mean()) / X.std()
 
         return X, Y
