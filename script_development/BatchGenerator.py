@@ -10,7 +10,7 @@ class BatchGenerator:
     def __init__(self, augment=True):
         self.augment = augment
 
-    def get_batch(self, vol_list, batch_dir, batch_size, patch_size, out_size, img_center, group_labels="liver", group_percentages=(0.5, 0.5)):
+    def get_batch(self, vol_list, batch_dir, batch_size, patch_size, out_size, img_center, group_labels="lesion", group_percentages=(0.5, 0.5)):
 
         ps_x, ps_y = patch_size
         out_x, out_y = out_size
@@ -22,8 +22,10 @@ class BatchGenerator:
         #Get a random volume and a random slice from it, batch_size times
         for b in range(batch_size):
 
-            i_vol = np.random.choice(vol_list, replace=True)#replace=False when using all volumes
+            #Pick a random volume
+            i_vol = np.random.choice(vol_list, replace=True)#replace=False when using enough (all) volumes
 
+            #load volume and segmentation
             vol = batch_dir + "/volume-{0}.nii".format(i_vol)
             vol_proxy = nib.load(vol)
             vol_array = vol_proxy.get_data()
@@ -32,28 +34,31 @@ class BatchGenerator:
             seg_proxy = nib.load(seg)
             seg_array = seg_proxy.get_data()
 
+            #Define group labels based on liver or lesion segmantation
             seg_group_labels = self.group_label(seg_array, group_labels, group_percentages)
 
+            #Pick a slice of a certain label
             if b < group_percentages[0]*batch_size:
                 label = 0
             else:
                 label = 1
-
             slice = self.select_slice(group_percentages, label) # int(np.random.random() * vol_array.shape[2])
 
             vol_slice = vol_array[:, :, slice]
             seg_slice = seg_group_labels[:, :, slice]
 
-            # Pre-processing image, i.e. cropping and padding
+            # Pre-processing slice, i.e. cropping and padding
             X, Y = self.preprocess_slice(vol_slice, seg_slice, patch_size, out_size, img_center)
 
             #TODO:
+            #Augment the batch
             #X, Y = self.augment(X,Y) (Import Wouter's augmenter)
 
             #if group_labels == "lesion"
-            #X,Y = self.livermask(X,Y,  #get the liver mask from the liver network for the lesion network) (import network we need to get a prediction)
-            #Maybe do this before getting a batch (Has to be done for ALL volumes and slices then)
+            #X,Y = self.apply_liver_mask(X,Y,  #get the liver mask from the liver network for the lesion network) (import network we need to get a prediction)
+            #Maybe do this before getting a batch (If so, will have to be done for ALL volumes and slices)
 
+            #Add the selected slice to the batch
             X_batch[b, 0, :, :] = X
             Y_batch[b, 0, :, :] = Y
         return X_batch, Y_batch
@@ -72,8 +77,7 @@ class BatchGenerator:
         return seg_group_labels
 
     def select_slice(self, group_percentages, label):
-
-        #TODO take exactly <group_percentage> slices from each group (not randomly)
+        #select a random slice of a given label
         if label == 0 or len(self.lbl_max_1_idx) == 0:
             slice = np.random.choice(self.lbl_max_0_idx,1)
         else:
@@ -82,6 +86,7 @@ class BatchGenerator:
         return slice[0]
 
     def preprocess_slice(self, vol_slice, seg_slice, patch_size, out_size, img_center):
+        #preprocess a slice by cropping and padding
         img_size = np.asarray(vol_slice.shape)
         extend = img_size - img_center
         # volume
