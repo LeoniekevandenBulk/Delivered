@@ -47,9 +47,6 @@ class BatchGenerator:
             # Pre-processing image, i.e. cropping and padding
             X, Y = self.preprocess_slice(vol_slice, seg_slice, patch_size, out_size, img_center)
 
-            #TODO:
-            #X, Y = self.augment(X,Y) (Import Wouter's augmenter)
-
             #if group_labels == "lesion"
             #X,Y = self.livermask(X,Y,  #get the liver mask from the liver network for the lesion network) (import network we need to get a prediction)
             #Maybe do this before getting a batch (Has to be done for ALL volumes and slices then)
@@ -113,9 +110,5 @@ class BatchGenerator:
                                np.sum(seg_slice[:,:crop_begin[0]]) + np.sum(seg_slice[:,crop_end[0]:])
         if sum_label_outside > 10:
             print("Warning: sum labels outside output crop is {}".format(sum_label_outside))
-
-        # Clip, then zero mean std 1 normalization
-        X = np.clip(X, -200, 300)
-        X = (X - X.mean()) / X.std()
 
         return X, Y
