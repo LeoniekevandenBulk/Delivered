@@ -47,5 +47,16 @@ class Trainer:
 
         return loss, l2_loss, accuracy, target_prediction, prediction
 
+    def predict_batch(self, X_val, Y_val, verbose=False):
 
+        weights_map = np.ndarray(Y_val.shape)
+        weights_map.fill(1)
+        if verbose:
+            print('validation...')
+            print 'validation X', X_val.shape, X_val.dtype, X_val.min(), X_val.max(), np.any(np.isnan(X_val))
+            print 'validation Y', Y_val.shape, Y_val.dtype, Y_val.min(), Y_val.max(), np.any(np.isnan(Y_val))
+            print 'validation weights_map', weights_map.shape, weights_map.dtype, weights_map.min(), \
+                weights_map.max(), np.any(np.isnan(Y_val))
+        prediction = self.network.predict_fn(X_val.astype(np.float32))
 
+        return prediction

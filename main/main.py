@@ -28,6 +28,7 @@ from UNetClass import UNetClass
 from Trainer import Trainer
 from BatchGenerator import BatchGenerator
 from BatchAugmenter import BatchAugmenter
+from Evaluator import Evaluator
 from tools import get_file_list
 from tools import output_size_for_input
 from tools import show_slices
@@ -151,9 +152,10 @@ lesionNetwork = UNetClass(inputs,
 
 print("Creating Theano training and validation functions for liver network ...")
 liverNetwork.train_fn, liverNetwork.val_fn = liverNetwork.define_updates(inputs, targets, weights)
+liverNetwork.predict_fn = liverNetwork.define_predict(inputs)
 print("Creating Theano training and validation functions for lesion network ...")
 lesionNetwork.train_fn, lesionNetwork.val_fn = lesionNetwork.define_updates(inputs, targets, weights)
-
+lesionNetwork.predict_fn = lesionNetwork.define_predict(inputs)
 
 '''
 Training
@@ -171,20 +173,23 @@ lesionTrainer = Trainer(lesionNetwork, "lesionNet", tra_list, val_list, learning
 # Creation of generators
 trainBatchGenerator = BatchGenerator(augment=True) # (with augmentation)
 valBatchGenerator = BatchGenerator(augment=False) # (without augmentation)
+evaluator = Evaluator()
 
 # Main training loop
-tra_loss_lst = []
-val_loss_lst = []
-tra_acc_lst = []
-val_acc_lst = []
-best_val_acc = 0
+tra_dice_lst = []
+val_dice_lst = []
+tra_ce_lst = []
+val_ce_lst = []
+best_val_dice = 0
+best_val_threshold = 0
 for epoch in range(nr_epochs):
     print('Epoch {}/{}'.format(epoch + 1,nr_epochs))
 
-    tra_losses = []
-    tra_accs = []
-    val_losses = []
-    val_accs = []
+    tra_dices = []
+    tra_ces = []
+    val_dices= []
+    val_ces= []
+    val_thres = []
     for batch in range(nr_train_batches):
         print('Batch {}/{}'.format(batch + 1, nr_batches))
         #Training batch generation
@@ -196,28 +201,39 @@ for epoch in range(nr_epochs):
         #X_tra, Y_tra = myAugmenter.getAugmentation()
 
         #Training
-        loss, l2_loss, accuracy, target_prediction, prediction = lesionTrainer.train_batch(X_tra, Y_tra, verbose=True)
-        print 'training loss, accuracy', loss, accuracy
-        tra_losses.append(loss)
-        tra_accs.append(accuracy)
-
+        prediction = lesionTrainer.train_batch(X_tra, Y_tra, verbose=True)
+        tra_error_report = evaluator.get_evaluation(prediction, Y_tra)
+        dice = tra_error_report[0][1]
+        cross_entropy = tra_error_report[1][1]
+ 
+        print 'training dice, cross entropy', dice, cross_entropy
+        tra_dices.append(dice)
+        tra_ces.append(cross_entropy)
 
     for batch in range(nr_val_batches):
         # Validation
         X_val, Y_val = valBatchGenerator.get_batch(val_list, train_batch_dir, batch_size,
                                      patch_size, out_size, img_center, group_labels="lesion", group_percentages=(0.5,0.5))
-        loss, l2_loss, accuracy, target_prediction, prediction = lesionTrainer.validate_batch(X_val, Y_val, verbose=True)
-        print 'validation loss, accuracy', loss, accuracy
-        val_losses.append(loss)
-        val_accs.append(accuracy)
 
-    tra_loss_lst.append(np.mean(tra_losses))
-    tra_acc_lst.append(np.mean(tra_accs))
-    val_loss_lst.append(np.mean(val_losses))
-    val_acc_lst.append(np.mean(val_accs))
+        prediction = lesionTrainer.predict_batch(X_val, Y_val, verbose=True)
+        val_error_report = evaluator.get_evaluation(prediction, Y_val)
+        dice = val_error_report[0][1]
+        threshold = val_error_report[0][2]
+        cross_entropy = val_error_report[1][1]
+        
+        print 'validation dice, cross entropy', val_error_report[0][1], val_error_report[1][1]
+        val_dices.append(dice)
+        val_ces.append(cross_entropy)
+        val_thres.append(threshold)
 
-    if np.mean(val_accs) > best_val_acc:
-        best_val_acc = np.mean(val_accs)
+    tra_dice_lst.append(np.mean(tra_dices))
+    tra_ce_lst.append(np.mean(tra_ces))
+    val_dice_lst.append(np.mean(val_dices))
+    val_ce_lst.append(np.mean(val_ces))
+
+    if np.mean(val_dices) > best_val_dice:
+        best_val_dice = np.mean(val_dices)
+        best_val_threshold = np.mean(val_thres)
         # save networks
         params = L.get_all_param_values(liverNetwork.net)
         np.savez(os.path.join('./', liver_network_name + '.npz'), params=params)
@@ -226,23 +242,25 @@ for epoch in range(nr_epochs):
 
     # plot learning curves
     fig = plt.figure(figsize=(10, 5))
-    tra_loss_plt, = plt.plot(range(len(tra_loss_lst)), tra_loss_lst, 'b')
-    val_loss_plt, = plt.plot(range(len(val_loss_lst)), val_loss_lst, 'g')
-    tra_acc_plt, = plt.plot(range(len(tra_acc_lst)), tra_acc_lst, 'm')
-    val_acc_plt, = plt.plot(range(len(val_acc_lst)), val_acc_lst, 'r')
+    tra_dice_plt, = plt.plot(range(len(tra_dice_lst)), tra_dice_lst, 'b')
+    val_dice_plt, = plt.plot(range(len(val_dice_lst)), val_dice_lst, 'g')
+    tra_ce_plt, = plt.plot(range(len(tra_ce_lst)), tra_ce_lst, 'm')
+    val_ce_plt, = plt.plot(range(len(val_ce_lst)), val_ce_lst, 'r')
     plt.xlabel('epoch')
     plt.ylabel('loss')
-    plt.legend([tra_loss_plt, val_loss_plt, tra_acc_plt, val_acc_plt],
-               ['training loss', 'validation loss', 'training accuracy', 'validation accuracy'],
+    plt.legend([tra_dice_plt, val_dice_plt, tra_ce_plt, val_ce_plt],
+               ['training dice', 'validation dice', 'training cross_entropy', 'validation cross_entropy'],
                loc='center left', bbox_to_anchor=(1, 0.5))
-    plt.title('Best validation accuracy = {:.2f}%'.format(100. * best_val_acc), size=40)
+    plt.title('Best validation dice = {:.2f}% with threshold {:d}'.format(best_val_dice, best_val_threshold), size=40)
     plt.show(block=False)
     plt.pause(.5)
 
-plt.legend([tra_loss_plt, val_loss_plt, tra_acc_plt, val_acc_plt],
-           ['training loss', 'validation loss', 'training accuracy', 'validation accuracy'],
-           loc='center left', bbox_to_anchor=(1, 0.5))
-plt.savefig('Loss_and_accuracy.png')
+plt.legend([tra_dice_plt, val_dice_plt, tra_ce_plt, val_ce_plt],
+               ['training dice', 'validation dice', 'training cross_entropy', 'validation cross_entropy'],
+               loc='center left', bbox_to_anchor=(1, 0.5))
+plt.savefig('Dice_and_cross_entropy.png')
+
+####################################
 
 '''
 Visualize some validation segmentations
