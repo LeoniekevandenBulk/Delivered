@@ -7,10 +7,7 @@ Batch generator
 '''
 
 class BatchGenerator:
-    def __init__(self, augment=True):
-        self.augment = augment
-
-    def get_batch(self, vol_list, batch_dir, batch_size, patch_size, out_size, img_center, group_labels="liver", group_percentages=(0.5, 0.5)):
+    def get_batch(self, vol_list, batch_dir, batch_size, patch_size, out_size, img_center, target_class="liver", group_percentages=(0.5, 0.5)):
 
         ps_x, ps_y = patch_size
         out_x, out_y = out_size
@@ -32,7 +29,7 @@ class BatchGenerator:
             seg_proxy = nib.load(seg)
             seg_array = seg_proxy.get_data()
 
-            seg_group_labels = self.group_label(seg_array, group_labels, group_percentages)
+            seg_group_labels = self.group_label(seg_array, target_class, group_percentages)
 
             if b < group_percentages[0]*batch_size:
                 label = 0
