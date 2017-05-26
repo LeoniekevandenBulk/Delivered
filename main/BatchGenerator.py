@@ -7,6 +7,10 @@ Batch generator
 '''
 
 class BatchGenerator:
+    def __init__(self, mask_network, threshold):
+        self.mask_network = mask_network
+        self.threshold = threshold
+
     def get_batch(self, vol_list, batch_dir, batch_size, patch_size, out_size, img_center, target_class="liver", group_percentages=(0.5, 0.5)):
 
         ps_x, ps_y = patch_size
