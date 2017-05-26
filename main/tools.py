@@ -41,6 +41,18 @@ def show_slices(vol_slices, seg_slices):
     for i, slice in enumerate(seg_slices):
         axes[1, i].imshow(slice.T, cmap="gray", origin="lower", clim=(0, 2))
 
+def show_slices_x3(vol_slices, seg_slices, pred_slices):
+    """ Function to display row of image slices """
+    nslice = len(vol_slices)
+    fig, axes = plt.subplots(3, nslice)
+    for i, slice in enumerate(vol_slices):
+        axes[0, i].imshow(slice.T, cmap="gray", origin="lower")
+    for i, slice in enumerate(seg_slices):
+        axes[1, i].imshow(slice.T, cmap="gray", origin="lower", clim=(0, 2))
+    for i, slice in enumerate(pred_slices):
+        axes[2, i].imshow(slice.T, cmap="gray", origin="lower", clim=(0, 2))
+
+
 def output_size_for_input(in_size, depth):
     in_size = np.array(in_size)
     in_size -= 4
@@ -101,28 +113,22 @@ def show_segmentation_prediction(batchGenerator, network, vol_list, batch_dir,
                                  patch_size, out_size, img_center):
     nr_test_batches = 5 # batch_size per test
     batch_size = 1
+    X_0 = []
+    Y_0 = []
     target_preds = []
     val_preds = []
     for i in range(nr_test_batches):
         X_val, Y_val = batchGenerator.get_batch(vol_list, batch_dir, batch_size,
-                                                   patch_size, out_size, img_center, group_labels=((0, 1), 2),
+                                                   patch_size, out_size, img_center, group_labels="lesion",
                                                    group_percentages=(0.5, 0.5))
-        #loss, l2_loss, accuracy, target_prediction, prediction = trainer.validate_batch(X_val, Y_val,
-        #                                                                                      verbose=True)
         weights_map = np.ndarray(Y_val.shape)
         weights_map.fill(1)
-        verbose=True
-        if verbose:
-            print('validation...')
-            print 'validation X', X_val.shape, X_val.dtype, X_val.min(), X_val.max(), np.any(np.isnan(X_val))
-            print 'validation Y', Y_val.shape, Y_val.dtype, Y_val.min(), Y_val.max(), np.any(np.isnan(Y_val))
-            print 'validation weights_map', weights_map.shape, weights_map.dtype, weights_map.min(), \
-                weights_map.max(), np.any(np.isnan(Y_val))
-        loss, l2_loss, accuracy, target_prediction, prediction = \
+        _, _, _, _, prediction = \
             network.val_fn(X_val.astype(np.float32), Y_val.astype(np.int32), weights_map.astype(np.float32))
-        target_preds.append(target_prediction.reshape(out_size[0], out_size[1]))
+        X_0.append(X_val[0,0,:,:])
+        Y_0.append(Y_val[0,0,:,:])
         val_preds.append(prediction.reshape(out_size[0], out_size[1],2)[:,:,1])
-    show_slices(target_preds, val_preds)
+    show_slices_x3(X_0, Y_0, val_preds)
     plt.suptitle("Segmentation results for validation images ", size=40)
     plt.savefig('Validation_segmentation.png')
     plt.pause(0.5)
