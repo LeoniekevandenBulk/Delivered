@@ -123,9 +123,9 @@ ps_x = patch_size[0]
 ps_y = patch_size[1]
 
 # ## Compile the theano functions
-inputs = T.ftensor4('X')
-targets = T.itensor4('Y')
-weights = T.ftensor4('W')
+inputs = T.ftensor4('X') #dtensor
+targets = T.itensor4('Y') 
+weights = T.ftensor4('W') #dtensor
 
 # Unet defined with pad='same' so input_size=output_size
 # The original Unet is defined without padding to not create border effects in case of tiling a large image.
@@ -259,8 +259,6 @@ plt.legend([tra_dice_plt, val_dice_plt, tra_ce_plt, val_ce_plt],
                ['training dice', 'validation dice', 'training cross_entropy', 'validation cross_entropy'],
                loc='center left', bbox_to_anchor=(1, 0.5))
 plt.savefig('Dice_and_cross_entropy.png')
-
-####################################
 
 '''
 Visualize some validation segmentations
