@@ -3,7 +3,7 @@ np.set_printoptions(precision=2, suppress=True)
 import theano.tensor as T
 
 from math import ceil
-from Trainer2 import *
+from Trainer import *
 from tools import *
 
 import random
