@@ -25,7 +25,7 @@ class BatchAugmenter:
         Y = Y[newposx1:newposx2, newposy1:newposy2].astype(int)
         return X, Y
     
-    def get_rnd_elastic(self, X, Y, alpha=40, sigma=6, random_state=None):
+    def get_rnd_elastic(self, X, Y, alpha=35, sigma=6, random_state=None):
         """Elastic deformation of images as described in [Simard2003]_.
         .. [Simard2003] Simard, Steinkraus and Platt, "Best Practices for
            Convolutional Neural Networks applied to Visual Document Analysis", in
@@ -67,7 +67,7 @@ class BatchAugmenter:
             if rotation:
                 X,Y = self.get_rnd_rotation(X,Y)
             if elastic:
-                X,Y = get_rnd_elastic(X,Y)
+                X,Y = self.get_rnd_elastic(X,Y)
             if gauss:
                 # Not applied to the labels; we're not actually creating lesions, just adding noise to the input
                 X = self.get_gauss_noise(X)

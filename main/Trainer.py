@@ -5,7 +5,7 @@ np.set_printoptions(precision=2, suppress=True)
 
 from UNetClass import UNetClass
 from BatchGenerator import BatchGenerator
-#from BatchAugmenter import BatchAugmenter
+from BatchAugmenter import BatchAugmenter
 from Evaluator import Evaluator
 
 
@@ -91,7 +91,7 @@ class Trainer:
         batchGenerator = BatchGenerator(mask_network, threshold)
 
         # Define data augmenter
-        #augmenter = BatchAugmenter()
+        augmenter = BatchAugmenter()
 
         # Define evaluator
         evaluator = Evaluator()
@@ -121,7 +121,7 @@ class Trainer:
                                      group_percentages=(0.5,0.5))
 
                 # Augment data batch
-                #X_tra, Y_tra = augmenter.getAugmentation(X_tra, Y_tra, aug_params)
+                X_tra, Y_tra = augmenter.getAugmentation(X_tra, Y_tra, aug_params)
 
                 # Clip, then apply zero mean std 1 normalization
                 X_tra = np.clip(X_tra, -200, 300)
