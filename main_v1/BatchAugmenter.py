@@ -11,6 +11,7 @@ class BatchAugmenter:
         ''' Return a rotated image and its labels. Both are rotated the same amount.
         The angle should in the range of -max_rotations to +max_rotations. '''
         dim1, dim2 = np.shape(X)
+        print "Rotating"
         dim1 = int(np.floor(dim1/2))
         dim2 = int(np.floor(dim2/2))
         rotation = np.random.uniform(-1,1)
@@ -69,7 +70,7 @@ class BatchAugmenter:
                 X,Y = self.get_rnd_elastic(X,Y)
             if gauss:
                 # Not applied to the labels; we're not actually creating lesions, just adding noise to the input
-                X = self.get_gauss_noise(X, gauss_avg, gauss_std)
+                X = self.get_gauss_noise(X)
 
             augmented_img_batch[i,:,:,:] = X
             augmented_img_labels[i,:,:,:] = Y

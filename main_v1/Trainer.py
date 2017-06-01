@@ -116,7 +116,7 @@ class Trainer:
                 print('Batch {0}/{1}'.format(batch + 1, nr_train_batches))
                 
                 # Generate batch
-                X_tra, Y_tra, M_tra = batchGenerator.get_batch(tra_list, train_batch_dir, batch_size,
+                X_tra, Y_tra = batchGenerator.get_batch(tra_list, train_batch_dir, batch_size,
                                      patch_size, out_size, img_center, target_class=target_class, 
                                      group_percentages=(0.5,0.5))
 
@@ -127,17 +127,8 @@ class Trainer:
                 X_tra = np.clip(X_tra, -200, 300)
                 X_tra = (X_tra - X_tra.mean()) / X_tra.std()
 
-                # If lesion netwerk, then apply mask
-                if target_class == 'lesion':
-                    #X_mask = mask_network.predict(X_tra)
-                    X_mask = M_tra # temporarily use ground truth mask for lesion network
-                    X_tra = (X_mask > 0).astype(np.int32) * X_tra
-
-                # Pad X and crop Y for UNet, note that array dimensions change here!
-                X_tra, Y_tra = batchGenerator.pad_and_crop(X_tra, Y_tra, patch_size, out_size, img_center)
-
                 #Train and return result for evaluation (reshape to out_size)
-                prediction, loss, accuracy = self.train_batch(network, X_tra, Y_tra)
+                prediction = self.train_batch(network, X_tra, Y_tra)
                 prediction = prediction.reshape(batch_size, 1, out_size[0], out_size[1], 2)[:,:,:,:,1]
 
                 # Get Evaluation report
@@ -146,7 +137,7 @@ class Trainer:
                 cross_entropy = error_report[1][1]
 
                 # Report and save performance
-                print ('training loss {}\n accuracy {}\n dice {}\ncross entropy {}'.format(loss, accuracy, dice, cross_entropy))
+                print ('training dice {0}\ncross entropy {1}'.format(dice, cross_entropy))
                 tra_dices.append(dice)
                 tra_ces.append(cross_entropy)
             # End training loop
@@ -161,22 +152,13 @@ class Trainer:
             for batch in range(nr_val_batches):
         
                 # Generate batch
-                X_val, Y_val, M_val = batchGenerator.get_batch(val_list, train_batch_dir, batch_size,
+                X_val, Y_val = batchGenerator.get_batch(val_list, train_batch_dir, batch_size,
                                      patch_size, out_size, img_center, target_class=target_class, 
                                      group_percentages=(0.5,0.5))
 
                 # Clip, then apply zero mean std 1 normalization
                 X_val = np.clip(X_val, -200, 300)
                 X_val = (X_val - X_val.mean()) / X_val.std()
-
-                # If lesion netwerk, then apply mask
-                if target_class == 'lesion':
-                    #X_mask = mask_network.predict(X_val)
-                    X_mask = M_val # temporarily use ground truth mask for lesion network
-                    X_val = (X_mask > 0).astype(np.int32) * X_val
-
-                # Pad X and crop Y for UNet, note that array dimensions change here!
-                X_val, Y_val = batchGenerator.pad_and_crop(X_val, Y_val, patch_size, out_size, img_center)
 
                 # Get prediction on batch
                 prediction = self.predict_batch(network, X_val, Y_val)
@@ -211,9 +193,8 @@ class Trainer:
                 np.savez(os.path.join('./', network_name + '_' + str(best_val_dice) + '_' + str(best_val_threshold) + '.npz'), params=params)
 
             # Plot result of this epoch
-            if not SURFsara:
-                self.plotResults(tra_dice_lst, tra_ce_lst, val_dice_lst, val_ce_lst,
-                    best_val_dice, best_val_threshold)
+            self.plotResults(tra_dice_lst, tra_ce_lst, val_dice_lst, val_ce_lst, 
+                best_val_dice, best_val_threshold)
 
         return network, best_val_threshold
 
@@ -233,7 +214,7 @@ class Trainer:
             loss, l2_loss, accuracy, target_prediction, prediction = \
             network.train_fn(X_tra.astype(np.float32), Y_tra.astype(np.int32), weights_map.astype(np.float32))
 
-        return prediction, loss, accuracy
+        return prediction
 
 
     '''
@@ -257,7 +238,7 @@ class Trainer:
     '''
     def plotResults(self, tra_dice_lst, tra_ce_lst, val_dice_lst, val_ce_lst, 
                 best_val_dice, best_val_threshold):
-
+          
         # plot learning curves
         fig = plt.figure(figsize=(30, 15))
         plt.xlabel('epoch', size=40)

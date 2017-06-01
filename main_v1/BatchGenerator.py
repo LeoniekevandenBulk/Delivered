@@ -15,12 +15,10 @@ class BatchGenerator:
 
         ps_x, ps_y = patch_size
         out_x, out_y = out_size
-        img_x, img_y = (512, 512)
-        #nr_volumes = len(vol_list)
+        nr_volumes = len(vol_list)
 
-        X_batch = np.ndarray((batch_size, 1, img_y, img_x))
-        Y_batch = np.ndarray((batch_size, 1, img_y, img_x))
-        M_batch = np.ndarray((batch_size, 1, img_y, img_x))
+        X_batch = np.ndarray((batch_size, 1, ps_y, ps_x))
+        Y_batch = np.ndarray((batch_size, 1, out_y, out_x))
 
         #Get a random volume and a random slice from it, batch_size times
         for b in range(batch_size):
@@ -44,15 +42,19 @@ class BatchGenerator:
 
             slice = self.select_slice(group_percentages, label) # int(np.random.random() * vol_array.shape[2])
 
-            X = vol_array[:, :, slice]
-            Y = seg_group_labels[:, :, slice]
-            M = (seg_array[:, :, slice]+1)//2
+            vol_slice = vol_array[:, :, slice]
+            seg_slice = seg_group_labels[:, :, slice]
+
+            # Pre-processing image, i.e. cropping and padding
+            X, Y = self.preprocess_slice(vol_slice, seg_slice, patch_size, out_size, img_center)
+
+            #if group_labels == "lesion"
+            #X,Y = self.livermask(X,Y,  #get the liver mask from the liver network for the lesion network) (import network we need to get a prediction)
+            #Maybe do this before getting a batch (Has to be done for ALL volumes and slices then)
 
             X_batch[b, 0, :, :] = X
             Y_batch[b, 0, :, :] = Y
-            M_batch[b, 0, :, :] = M
-
-        return X_batch, Y_batch, M_batch # temporarily pass on ground truth mask for lesion network
+        return X_batch, Y_batch
 
     def group_label(self, seg_array, group_labels, group_percentages):
         # re-label seg_array according to group_labels
@@ -79,31 +81,34 @@ class BatchGenerator:
 
         return slice[0]
 
-    def pad_and_crop(self, Ximg, Yimg, patch_size, out_size, img_center):
+    def preprocess_slice(self, vol_slice, seg_slice, patch_size, out_size, img_center):
+
+        # Mask with ground truth maks
+        vol_slice = (seg_slice > 0).astype(np.int32) * vol_slice
 
         # Cropping and padding for UNet
-        img_size = np.asarray((Ximg.shape[2], Ximg.shape[3]))
+        img_size = np.asarray(vol_slice.shape)
         extend = img_size - img_center
-        # pad X
+        # volume
         patch_array = np.asarray(patch_size)
         crop_begin = np.clip(img_center - patch_array/2, 0, None) # [0, 0]
         crop_end = img_size - np.clip(extend - patch_array/2, 0, None)
         pad_begin = patch_array // 2 - img_center
         pad_end = pad_begin + (crop_end - crop_begin)
-        X = np.ndarray((Ximg.shape[0], Ximg.shape[1], patch_size[0], patch_size[1]))
-        X[:, :, pad_begin[1]:pad_end[1], pad_begin[0]:pad_end[0]] = \
-                Ximg[:, :, crop_begin[1]:crop_end[1], crop_begin[0]:crop_end[0]]
-        # crop Y
+        X = np.ndarray(patch_size)
+        X[pad_begin[1]:pad_end[1], pad_begin[0]:pad_end[0]] = \
+                vol_slice[crop_begin[1]:crop_end[1], crop_begin[0]:crop_end[0]]
+        # segmentation
         out_array = np.asarray(out_size)
         crop_begin = np.clip(img_center - out_array / 2, 0, None)
         crop_end = img_size - np.clip(extend - out_array/2, 0, None)
         pad_begin = np.clip(out_array // 2 - img_center, 0, None)
         pad_end = pad_begin + np.clip(crop_end - crop_begin, 0, None)
-        Y = np.ndarray((Yimg.shape[0], Yimg.shape[1], out_size[0], out_size[1]))
-        Y[:, :, pad_begin[1]:pad_end[1], pad_begin[0]:pad_end[0]] = \
-                Yimg[:, :, crop_begin[1]:crop_end[1], crop_begin[0]:crop_end[0]]
-        sum_label_outside = np.sum(Yimg[:,:,:crop_begin[1],:]) + np.sum(Yimg[:,:,crop_end[1]:,:]) + \
-                               np.sum(Yimg[:,:,:,:crop_begin[0]]) + np.sum(Yimg[:,:,:,crop_end[0]:])
+        Y = np.ndarray(out_size)
+        Y[pad_begin[1]:pad_end[1], pad_begin[0]:pad_end[0]] = \
+                seg_slice[crop_begin[1]:crop_end[1], crop_begin[0]:crop_end[0]]
+        sum_label_outside = np.sum(seg_slice[:crop_begin[1],:]) + np.sum(seg_slice[crop_end[1]:,:]) + \
+                               np.sum(seg_slice[:,:crop_begin[0]]) + np.sum(seg_slice[:,crop_end[0]:])
         if sum_label_outside > 10:
             print("Warning: sum labels outside output crop is {}".format(sum_label_outside))
 

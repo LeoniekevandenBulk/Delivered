@@ -28,19 +28,18 @@ load_lesion_detection = False
 
 # UNet architecture
 depth = 5
-branching_factor = 6 # 2^6 filters for first level, 2^7 for second, etc.
+branching_factor = 2  # 2^6 filters for first level, 2^7 for second, etc.
 
 # Image dimensions
 patch_size = (650,650)
-out_size = output_size_for_input\
-    (patch_size, depth)
+out_size = output_size_for_input(patch_size, depth)
 img_center = [256, 256]
 
 # Training
 learning_rate = 0.1
-nr_epochs = 1 # 10
-nr_train_batches = 2 # 10
-nr_val_batches = 2 # 2
+nr_epochs = 1
+nr_train_batches = 1
+nr_val_batches = 1
 batch_size = 5
 
 max_rotation = 10
@@ -104,18 +103,18 @@ trainer = Trainer(SURFsara)
 
 
 # Load or train liver segmentation network
-#print("Liver Network...")
-#if (load_liver_segmentation):
-#    liver_network = trainer.readNetwork(liver_segmentation_name, patch_size,
-#            inputs, targets, weights, depth, branching_factor)
-#    liver_threshold = 0.5 # Just to catch potential errors. We should know this during runtime
-#else:
-#    liver_network, liver_threshold = trainer.trainNetwork(liver_segmentation_name,
-#            patch_size, depth, branching_factor, out_size, img_center,
-#            train_batch_dir, inputs, targets, weights,
-#            "liver", tra_list, val_list,
-#            liver_aug_params, learning_rate,
-#            nr_epochs, nr_train_batches, nr_val_batches, batch_size)
+print("Liver Network...")
+if (load_liver_segmentation):
+    liver_network = trainer.readNetwork(liver_segmentation_name, patch_size, 
+            inputs, targets, weights, depth, branching_factor)
+    liver_threshold = 0.5 # Just to catch potential errors. We should know this during runtime
+else:
+    liver_network, liver_threshold = trainer.trainNetwork(liver_segmentation_name,
+            patch_size, depth, branching_factor, out_size, img_center,
+            train_batch_dir, inputs, targets, weights, 
+            "liver", tra_list, val_list,
+            liver_aug_params, learning_rate,
+            nr_epochs, nr_train_batches, nr_val_batches, batch_size)
 
 
 # Load or train lesion detection network
@@ -129,11 +128,8 @@ else:
             train_batch_dir, inputs, targets, weights, 
             "lesion", tra_list, val_list,
             lesion_aug_params, learning_rate,
-            nr_epochs, nr_train_batches, nr_val_batches, batch_size)#,
-            #mask_network = liver_network, threshold = liver_threshold)
-
-print("Finished.")
-
+            nr_epochs, nr_train_batches, nr_val_batches, batch_size,
+            mask_network = liver_network, threshold = liver_threshold)
 
 
 
