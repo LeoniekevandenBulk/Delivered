@@ -56,7 +56,7 @@ class BatchAugmenter:
         augmented_img_batch = np.zeros(np.shape(img_batch))
         augmented_img_labels = np.zeros(np.shape(img_labels))
         
-        for i in range(len(img_batch)):
+        for i in range(np.shape(img_batch)[0]):
             X = np.squeeze(img_batch[i,:,:,:])
             Y = np.squeeze(img_labels[i,:,:,:])
             
@@ -65,7 +65,7 @@ class BatchAugmenter:
             
             # Perform augmentations
             if rotation:
-                X,Y = self.get_rnd_rotation(X,Y)
+                X,Y = self.get_rnd_rotation(X,Y,max_rotation)
             if elastic:
                 X,Y = self.get_rnd_elastic(X,Y)
             if gauss:
