@@ -65,8 +65,10 @@ class BatchAugmenter:
             # Perform augmentations
             if rotation:
                 X,Y = self.get_rnd_rotation(X,Y,max_rotation)
+                Y = np.round(Y)
             if elastic:
                 X,Y = self.get_rnd_elastic(X,Y)
+
             if gauss:
                 # Not applied to the labels; we're not actually creating lesions, just adding noise to the input
                 X = self.get_gauss_noise(X, gauss_avg, gauss_std)

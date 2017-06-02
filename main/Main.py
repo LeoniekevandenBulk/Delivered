@@ -1,6 +1,7 @@
 import numpy as np
 np.set_printoptions(precision=2, suppress=True)
 import theano.tensor as T
+import nibabel as nib
 
 from math import ceil
 from Trainer import *
@@ -14,6 +15,7 @@ from BatchAugmenter import BatchAugmenter
 import time
 import cProfile
 import re
+import os
 
 start_time = time.time()
 
@@ -35,6 +37,9 @@ load_liver_segmentation = False
 lesion_detection_name = 'lesion_network_LiTS'
 load_lesion_detection = False
 
+# Determine whether to test or not
+run_test = False
+
 # UNet architecture
 depth = 5
 branching_factor = 2 # 2^6 filters for first level, 2^7 for second, etc.
@@ -53,8 +58,8 @@ nr_val_batches = 2 # 2
 batch_size = 5
 
 max_rotation = 10
-liver_aug_params = [0.1,0.8,0.9]
-lesion_aug_params = [0.1,0.8,0.6]
+liver_aug_params = [0.1,0.0,0.9]
+lesion_aug_params = [0.1,0.0,0.6]
 
 liver_network_name = 'liver_network_LiTS'
 lesion_network_name = 'lesion_network_LiTS'
@@ -72,17 +77,13 @@ else:
 
 
 '''
-Data loading
+Train data loading
 '''
 
 train_batch_dir='../data/Training_Batch'
 
 vol_batch = sorted(get_file_list(train_batch_dir, 'volume')[0])
 seg_batch = sorted(get_file_list(train_batch_dir, 'segmentation')[0])
-
-show_vol = False
-if show_vol:
-        show_volumes(vol_batch, seg_batch)
 
 
 '''
@@ -109,12 +110,13 @@ Initiate training/loading of networks
 '''
 
 # Create class to train (or load) networks
-test_without_train_fn = False # test cpu time without train_fn, which will be mostly in loading the volumes
-trainer = Trainer(SURFsara, test_without_train_fn)
+trainer = Trainer(SURFsara)
 
-case = 'lesion'
+# Loop-booleans to allow specific training
+train_liver = True
+train_lesion = True
 
-if case == 'liver':
+if train_liver:
     # Load or train liver segmentation network
     print("Liver Network...")
 
@@ -130,7 +132,8 @@ if case == 'liver':
                 "liver", tra_list, val_list,
                 liver_aug_params, learning_rate,
                 nr_epochs, nr_train_batches, nr_val_batches, batch_size)
-elif case == 'lesion':
+
+if train_lesion:
     # Load or train lesion detection network
     print("Lesion Network...")
     if (load_lesion_detection):
@@ -138,14 +141,15 @@ elif case == 'lesion':
                 inputs, targets, weights, depth, branching_factor)
     else:
         mask = 'ground truth'  # choose 'liver' or 'ground_truth'
-        if mask == 'liver':
-            liver_network = trainer.readNetwork(liver_segmentation_name, patch_size,
-                                                inputs, targets, weights, depth, branching_factor)
-            liver_threshold = 0.5  # Just to catch potential errors. We should know this during runtime
+
+        # Set relevant variables depending on whether liver network was trained
+        if train_liver:
             mask_network = liver_network
+        
         else:
             mask_network = None
             liver_threshold = 0.5
+        
         lesion_network, lesion_threshold = trainer.trainNetwork(start_time, lesion_detection_name, mask,
                 patch_size, depth, branching_factor, out_size, img_center,
                 train_batch_dir, inputs, targets, weights,
@@ -153,15 +157,96 @@ elif case == 'lesion':
                 lesion_aug_params, learning_rate,
                 nr_epochs, nr_train_batches, nr_val_batches, batch_size,
                 mask_network, threshold = liver_threshold)
-else:
-    print("Which case is {}?".format(case))
 
-print("Finished.")
+'''
+Move on to testing and submitting results (asks every time)
+'''
+if (run_test):
+    print("Testing now...")
+
+    tester = Tester(SURFsara)
+
+    # Load test data from folder
+    test_dir='../data/Test-Data'
+    vol_test = sorted(get_file_list(test_dir, 'test-volume')[0])
+
+    # Make sure that the output folder exists
+    result_output_folder = os.path.join(test_dir, 'results')
+    if not (os.path.exists(result_output_folder)):
+        os.mkdir(result_output_folder)
+
+    for i, vol in enumerate(vol_test):
+        # Load 3D volumes
+        vol_array = nib.load(vol).get_data()
+
+        ###################
+        # COULD BE WRONG! #
+        ###################
+        affine_shape = vol_array.affine.shape
+
+        #vol_array=vol_array[:,:,vol_array.shape[2]/2:vol_array.shape[2]/2+1] # testing middle slice
+        
+        # Match input size with expected array dimension
+        input_size = liver_network.input_size
+        X = np.zeros((1, 1, input_size[0], input_size[1]))
+
+        # Batch generator for padding (so nonsense arguments)
+        batchGenerator = BatchGenerator(None, 0.5)
+
+        # Classify each slice
+        classification = np.zeros(vol_array.shape)
+        for j in range(vol_array.shape[2]):
+
+            print ('predicting slice '+str(img_slice)+'/'+str(vol_array.shape[2]-1)+', test volume '+vol)
+
+            # Copy slice into memory
+            img_slice = vol_array[:, :, j]
+
+            # Normalize values of the image slice
+            img_slice = np.clip(img_slice, -200, 300)
+            #X_tra = (X_tra - X_tra.mean()) / X_tra.std()
+            img_slice = (img_slice + 200)/ 500
+
+            # PAD X FOR LIVER DETECTION
+            img_slice = batchGenerator.pad(img_slice, patch_size, image_center)
+
+            
+            # Put image slice into X
+            X[0, 0, :, :] = img_slice
+
+            # Apply liver segmentation network
+            liver_seg_mask = liver_network.predict_fn(X.astype(np.float32))        
+            # Turn heatmap into binary classification
+            liver_seg_mask = (liver_seg_mask > liver_threshold).astype(np.int32)
 
 
+            # PAD LIVER MASK FOR LESION SEGMENTATION
+            liver_seg_mask = batchGenerator.pad(liver_seg_mask, patch_size, image_center)
+
+            
+            # Apply liver mask to slice
+            X[0,0,:,:] = np.multiply(X[0, 0, :,:], liver_seg_mask)
+
+            # Apply lesion detection network
+            lesion_detect = lesion_network.predict_fn(X.astype(np.float32))
+            # Turn heatmap into binary classification
+            lesion_detect = (lesion_detect > lesion_threshold).astype(np.int32)        
+            # Match format (lesion has value 2)
+            lesion_detect = lesion_detect * 2
 
 
+            # PAD LESION DETECTION FOR 512x512 CRITERIUM
+            lesion_detect = batchGenerator.pad(img_slice, (512,512), image_center)
+            
 
+            # Then save into classification array
+            classification[:,:, img_slice] = lesion_detect
+
+        # Turn image into .nii file
+        nii_classification = nib.Nifti1Image(classification, affine=affine_shape)
+
+        # Save output to file
+        nib.save(nii_classification, os.path.join(test_dir, "results/test-segmentation-{}.nii".format(i)))
 
 
 
