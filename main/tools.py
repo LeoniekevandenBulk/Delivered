@@ -91,17 +91,26 @@ def show_preprocessing(nr_tra_volumes, train_batch_dir, batchGenerator, patch_si
     Y_0 = []
     for i in range(5):
         i_vol = int(np.random.random() * nr_tra_volumes)
-        vol = train_batch_dir + "/volume-{0}.nii".format(i_vol)
-        vol_proxy = nib.load(vol)
-        vol_array = vol_proxy.get_data()
-        seg = train_batch_dir + "/segmentation-{0}.nii".format(i_vol)
-        seg_proxy = nib.load(seg)
-        seg_array = seg_proxy.get_data()
-        slice = int(np.random.random() * vol_array.shape[2])
-        vol_slice = vol_array[:, :, slice]
-        seg_slice = seg_array[:, :, slice]
-        # Execute the following cells several times to see if the results you get make sense
-        X, Y = batchGenerator.preprocess_slice(vol_slice, seg_slice, patch_size, out_size, img_center)
+        # Generate batch
+        X_tra, Y_tra, M_tra = batchGenerator.get_batch(tra_list, train_batch_dir, 1,
+                                                       patch_size, out_size, img_center, target_class=target_class,
+                                                       group_percentages=(0.5, 0.5))
+
+        # Augment data batch
+        X_tra, Y_tra = augmenter.getAugmentation(X_tra, Y_tra, aug_params)
+
+        # Clip, then apply zero mean std 1 normalization
+        X_tra = np.clip(X_tra, -200, 300)
+        X_tra = (X_tra - X_tra.mean()) / X_tra.std()
+
+        # If lesion netwerk, then apply mask
+        if target_class == 'lesion':
+            # X_mask = mask_network.predict(X_tra)
+            X_mask = M_tra  # temporarily use ground truth mask for lesion network
+            X_tra = (X_mask > 0).astype(np.int32) * X_tra
+
+        # Pad X and crop Y for UNet, note that array dimensions change here!
+        X_tra, Y_tra = batchGenerator.pad_and_crop(X_tra, Y_tra, patch_size, out_size, img_center)
         X_0.append(X)
         Y_0.append(Y)
     show_slices(X_0, Y_0)

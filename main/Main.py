@@ -8,6 +8,15 @@ from tools import *
 
 import random
 
+from BatchGenerator import BatchGenerator
+from BatchAugmenter import BatchAugmenter
+
+import time
+import cProfile
+import re
+
+start_time = time.time()
+
 # Seed random to make sure validation set is always same
 random.seed(0)
 
@@ -28,7 +37,7 @@ load_lesion_detection = False
 
 # UNet architecture
 depth = 5
-branching_factor = 6 # 2^6 filters for first level, 2^7 for second, etc.
+branching_factor = 2 # 2^6 filters for first level, 2^7 for second, etc.
 
 # Image dimensions
 patch_size = (650,650)
@@ -38,8 +47,8 @@ img_center = [256, 256]
 
 # Training
 learning_rate = 0.1
-nr_epochs = 1 # 10
-nr_train_batches = 2 # 10
+nr_epochs = 10 # 10
+nr_train_batches = 10 # 10
 nr_val_batches = 2 # 2
 batch_size = 5
 
@@ -100,37 +109,52 @@ Initiate training/loading of networks
 '''
 
 # Create class to train (or load) networks
-trainer = Trainer(SURFsara)
+test_without_train_fn = False # test cpu time without train_fn, which will be mostly in loading the volumes
+trainer = Trainer(SURFsara, test_without_train_fn)
 
+case = 'lesion'
 
-# Load or train liver segmentation network
-#print("Liver Network...")
-#if (load_liver_segmentation):
-#    liver_network = trainer.readNetwork(liver_segmentation_name, patch_size,
-#            inputs, targets, weights, depth, branching_factor)
-#    liver_threshold = 0.5 # Just to catch potential errors. We should know this during runtime
-#else:
-#    liver_network, liver_threshold = trainer.trainNetwork(liver_segmentation_name,
-#            patch_size, depth, branching_factor, out_size, img_center,
-#            train_batch_dir, inputs, targets, weights,
-#            "liver", tra_list, val_list,
-#            liver_aug_params, learning_rate,
-#            nr_epochs, nr_train_batches, nr_val_batches, batch_size)
+if case == 'liver':
+    # Load or train liver segmentation network
+    print("Liver Network...")
 
-
-# Load or train lesion detection network
-print("Lesion Network...")
-if (load_lesion_detection):
-    lesion_network = trainer.readNetwork(lesion_detection_name, patch_size,
-            inputs, targets, weights, depth, branching_factor)
+    if (load_liver_segmentation):
+        liver_network = trainer.readNetwork(liver_segmentation_name, patch_size,
+                inputs, targets, weights, depth, branching_factor)
+        liver_threshold = 0.5 # Just to catch potential errors. We should know this during runtime
+    else:
+        mask = 'none'
+        liver_network, liver_threshold = trainer.trainNetwork(start_time, liver_segmentation_name, mask,
+                patch_size, depth, branching_factor, out_size, img_center,
+                train_batch_dir, inputs, targets, weights,
+                "liver", tra_list, val_list,
+                liver_aug_params, learning_rate,
+                nr_epochs, nr_train_batches, nr_val_batches, batch_size)
+elif case == 'lesion':
+    # Load or train lesion detection network
+    print("Lesion Network...")
+    if (load_lesion_detection):
+        lesion_network = trainer.readNetwork(lesion_detection_name, patch_size,
+                inputs, targets, weights, depth, branching_factor)
+    else:
+        mask = 'ground truth'  # choose 'liver' or 'ground_truth'
+        if mask == 'liver':
+            liver_network = trainer.readNetwork(liver_segmentation_name, patch_size,
+                                                inputs, targets, weights, depth, branching_factor)
+            liver_threshold = 0.5  # Just to catch potential errors. We should know this during runtime
+            mask_network = liver_network
+        else:
+            mask_network = None
+            liver_threshold = 0.5
+        lesion_network, lesion_threshold = trainer.trainNetwork(start_time, lesion_detection_name, mask,
+                patch_size, depth, branching_factor, out_size, img_center,
+                train_batch_dir, inputs, targets, weights,
+                "lesion", tra_list, val_list,
+                lesion_aug_params, learning_rate,
+                nr_epochs, nr_train_batches, nr_val_batches, batch_size,
+                mask_network, threshold = liver_threshold)
 else:
-    lesion_network, lesion_threshold = trainer.trainNetwork(lesion_detection_name,
-            patch_size, depth, branching_factor, out_size, img_center,
-            train_batch_dir, inputs, targets, weights, 
-            "lesion", tra_list, val_list,
-            lesion_aug_params, learning_rate,
-            nr_epochs, nr_train_batches, nr_val_batches, batch_size)#,
-            #mask_network = liver_network, threshold = liver_threshold)
+    print("Which case is {}?".format(case))
 
 print("Finished.")
 

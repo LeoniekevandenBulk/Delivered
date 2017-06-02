@@ -20,8 +20,8 @@ class BatchAugmenter:
         newposx2 = int(np.floor(np.shape(X)[0]/2)+dim1)
         newposy1 = int(np.floor(np.shape(X)[1]/2)-dim2)
         newposy2 = int(np.floor(np.shape(X)[1]/2)+dim2)
-        X = X[newposx1:newposx2, newposy1:newposy2].astype(int)
-        Y = Y[newposx1:newposx2, newposy1:newposy2].astype(int)
+        X = X[newposx1:newposx2, newposy1:newposy2]
+        Y = Y[newposx1:newposx2, newposy1:newposy2]
         return X, Y
     
     def get_rnd_elastic(self, X, Y, alpha=35, sigma=6, random_state=None):
