@@ -1,0 +1,17 @@
+TASK                                    PERSON                  STATUS
+---------------------------------------------------------------------------
+- Tester schrijven                      Erwin                   In Progress
+- Alternatief inladen images            Wouter W                In Progress
+- Dice score fixen                      Leonieke                In Progress
+- Augmenter debuggen                    Wouter E                In Progress
+
+- SURFsara leren                        All                     In Progress
+- SURFsara trainen                      Wouter W                Later
+
+- opzetten gezamelijk bestand                                   Later
+- schrijven introduction                                        Later
+- schrijven methods                                             Later
+
+- Loss visualiseren                     Germonda                In Progress
+- Matching plaatjes visualiseren        Germonda                In Progress
+
