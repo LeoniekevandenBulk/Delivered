@@ -72,7 +72,6 @@ class BatchAugmenter:
             if gauss:
                 # Not applied to the labels; we're not actually creating lesions, just adding noise to the input
                 X = self.get_gauss_noise(X, gauss_avg, gauss_std)
-                print "After noise, X_tra min and max ", np.min(X), np.max(X)
 
             augmented_img_batch[i,:,:,:] = X
             augmented_img_labels[i,:,:,:] = Y
