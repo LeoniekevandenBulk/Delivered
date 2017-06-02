@@ -1,6 +1,7 @@
 import numpy as np
 np.set_printoptions(precision=2, suppress=True)
 import theano.tensor as T
+import nibabel as nib
 
 from math import ceil
 from Trainer import *
@@ -14,6 +15,7 @@ from BatchAugmenter import BatchAugmenter
 import time
 import cProfile
 import re
+import os
 
 start_time = time.time()
 
@@ -176,11 +178,20 @@ if (run_test):
     for i, vol in enumerate(vol_test):
         # Load 3D volumes
         vol_array = nib.load(vol).get_data()
-        vol_array=vol_array[:,:,vol_array.shape[2]/2:vol_array.shape[2]/2+1] # testing middle slice
+
+        ###################
+        # COULD BE WRONG! #
+        ###################
+        affine_shape = vol_array.affine.shape
+
+        #vol_array=vol_array[:,:,vol_array.shape[2]/2:vol_array.shape[2]/2+1] # testing middle slice
         
         # Match input size with expected array dimension
         input_size = liver_network.input_size
         X = np.zeros((1, 1, input_size[0], input_size[1]))
+
+        # Batch generator for padding (so nonsense arguments)
+        batchGenerator = BatchGenerator(None, 0.5)
 
         # Classify each slice
         classification = np.zeros(vol_array.shape)
@@ -197,7 +208,7 @@ if (run_test):
             img_slice = (img_slice + 200)/ 500
 
             # PAD X FOR LIVER DETECTION
-            img_slice = 
+            img_slice = batchGenerator.pad(img_slice, patch_size, image_center)
 
             
             # Put image slice into X
@@ -210,6 +221,7 @@ if (run_test):
 
 
             # PAD LIVER MASK FOR LESION SEGMENTATION
+            liver_seg_mask = batchGenerator.pad(liver_seg_mask, patch_size, image_center)
 
             
             # Apply liver mask to slice
@@ -222,16 +234,19 @@ if (run_test):
             # Match format (lesion has value 2)
             lesion_detect = lesion_detect * 2
 
+
             # PAD LESION DETECTION FOR 512x512 CRITERIUM
+            lesion_detect = batchGenerator.pad(img_slice, (512,512), image_center)
             
 
             # Then save into classification array
             classification[:,:, img_slice] = lesion_detect
 
         # Turn image into .nii file
+        nii_classification = nib.Nifti1Image(classification, affine=affine_shape)
 
         # Save output to file
-        np.save("test-segmentation-{}.nii".format(i), classification)
+        nib.save(nii_classification, os.path.join(test_dir, "results/test-segmentation-{}.nii".format(i)))
 
 
 
