@@ -1,6 +1,6 @@
 TASK                                    PERSON                  STATUS
 ---------------------------------------------------------------------------
-- Tester schrijven                      Erwin                   In Progress
+- Tester schrijven                      Erwin                   Done (Verify needed)
 - Alternatief inladen images            Wouter W                In Progress
 - Dice score fixen                      Leonieke                In Progress
 - Augmenter debuggen                    Wouter E                Done
