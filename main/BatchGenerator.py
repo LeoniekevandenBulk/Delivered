@@ -37,7 +37,11 @@ class BatchGenerator:
 
             seg_group_labels = self.group_label(seg_array, target_class, group_percentages)
 
-            label = np.random.randint(2)
+            ran = np.random.randint(10)
+            if(ran < group_percentages[0]*10):
+                label = 0
+            else:
+                label = 1
 
             slice = self.select_slice(group_percentages, label) # int(np.random.random() * vol_array.shape[2])
 

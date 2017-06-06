@@ -27,10 +27,8 @@ class Trainer:
     '''
         Constructor to catch SURFsara-dependent imports
     '''
-    def __init__(self, SURFsara, test_without_train_fn):
+    def __init__(self, SURFsara):
         self.SURFsara = SURFsara
-        self.test_without_train_fn = test_without_train_fn
-
 
     '''
         Function to read an existing network from file.
@@ -107,7 +105,7 @@ class Trainer:
         val_dice_lst = []
         tra_ce_lst = []
         val_ce_lst = []
-        best_val_loss = 0
+        best_val_loss = 10000
         best_val_threshold = 0
 
         # Test de BatchGenerator en pre-processing steps
@@ -133,7 +131,7 @@ class Trainer:
                                      group_percentages=(0.5,0.5))
 
                 # Augment data batch
-                #X_tra, Y_tra = augmenter.getAugmentation(X_tra, Y_tra, aug_params)
+                X_tra, Y_tra = augmenter.getAugmentation(X_tra, Y_tra, aug_params)
 
                 # Clip, then apply zero mean std 1 normalization
                 X_tra = np.clip(X_tra, -200, 300)
@@ -152,13 +150,8 @@ class Trainer:
                 X_tra, Y_tra = batchGenerator.pad_and_crop(X_tra, Y_tra, patch_size, out_size, img_center)
 
                 #Train and return result for evaluation (reshape to out_size)
-                if self.test_without_train_fn:
-                    prediction = Y_tra
-                    loss = 0
-                    accuracy = 1
-                else:
-                    prediction, loss, accuracy = self.train_batch(network, X_tra, Y_tra)
-                    prediction = prediction.reshape(batch_size, 1, out_size[0], out_size[1], 2)[:,:,:,:,1]
+                prediction, loss, accuracy = self.train_batch(network, X_tra, Y_tra)
+                prediction = prediction.reshape(batch_size, 1, out_size[0], out_size[1], 2)[:,:,:,:,1]
 
                 # Get Evaluation report
                 error_report = evaluator.get_evaluation(Y_tra, prediction)
@@ -205,13 +198,8 @@ class Trainer:
                 X_val, Y_val = batchGenerator.pad_and_crop(X_val, Y_val, patch_size, out_size, img_center)
 
                 # Get prediction on batch
-                if self.test_without_train_fn:
-                    prediction = Y_val
-                    loss = 0
-                    accuracy = 1
-                else:
-                    prediction, loss, accuracy = self.validate_batch(network, X_val, Y_val)
-                    prediction = prediction.reshape(batch_size, 1, out_size[0], out_size[1], 2)[:, :, :, :, 1]
+                prediction, loss, accuracy = self.validate_batch(network, X_val, Y_val)
+                prediction = prediction.reshape(batch_size, 1, out_size[0], out_size[1], 2)[:, :, :, :, 1]
 
 
                 # Get evaluation report
@@ -239,12 +227,12 @@ class Trainer:
             val_ce_lst.append(np.mean(val_ces))
 
             # If performance is best, save network
-            if np.mean(val_loss) > best_val_loss:
+            if np.mean(val_loss) < best_val_loss:
                 best_val_loss = np.mean(val_loss)
                 best_val_threshold = np.mean(val_thres)
                 # save networks
                 params = lasagne.layers.get_all_param_values(network.net)
-                np.savez(os.path.join('./', network_name + '_' + str(best_val_loss) + '_' + str(best_val_threshold) + '.npz'), params=params)
+                np.savez(os.path.join('../../Networks/test/', network_name + '_' + str(best_val_loss) + '_' + str(best_val_threshold) + '.npz'), params=params)
 
             # Plot result of this epoch
             if not self.SURFsara and epoch == nr_epochs-1:
