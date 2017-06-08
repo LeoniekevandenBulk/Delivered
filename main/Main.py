@@ -28,14 +28,22 @@ Set parameters to suitable values
 '''
 
 # Boolean to catch SURFsara dependent code
-SURFsara = False
+SURFsara = True
 
 # Variables that define which network to load from file (or not)
 liver_segmentation_name = 'liver_network_LiTS'
 load_liver_segmentation = False
 
 lesion_detection_name = 'lesion_network_LiTS'
-load_lesion_detection = False
+load_lesion_detection = True
+
+#read slices from file, names of the files to read slices from
+read_slices = True
+vol_tra_slices_name = '9k_liver_vol_tra_slices.npy' #vol_tra_slices
+seg_tra_slices_name = '9k_liver_seg_tra_slices.npy' #seg_tra_slices
+vol_val_slices_name = '4k_liver_vol_val_slices.npy' #vol_val_slices
+seg_val_slices_name = '4k_liver_seg_val_slices.npy' #seg_val_slices
+slice_files = np.array([vol_tra_slices_name, seg_tra_slices_name, vol_val_slices_name, seg_val_slices_name])
 
 # Determine whether to test or not
 run_test = False
@@ -131,7 +139,8 @@ if train_liver:
                 train_batch_dir, inputs, targets, weights,
                 "liver", tra_list, val_list,
                 liver_aug_params, learning_rate,
-                nr_epochs, nr_train_batches, nr_val_batches, batch_size)
+                nr_epochs, nr_train_batches, nr_val_batches, batch_size,
+                read_slices, slice_files)
 
 if train_lesion:
     # Load or train lesion detection network

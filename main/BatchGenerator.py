@@ -188,3 +188,21 @@ class BatchGenerator:
             print("Warning: sum labels outside output crop is {}".format(sum_label_outside))
 
         return X, Y
+
+    def pad(self, Ximg, patch_size, img_center):
+
+        # Cropping and padding for UNet
+        img_size = np.asarray((Ximg.shape[2], Ximg.shape[3]))
+        extend = img_size - img_center
+
+        # pad X
+        patch_array = np.asarray(patch_size)
+        crop_begin = np.clip(img_center - patch_array / 2, 0, None)  # [0, 0]
+        crop_end = img_size - np.clip(extend - patch_array / 2, 0, None)
+        pad_begin = patch_array // 2 - img_center
+        pad_end = pad_begin + (crop_end - crop_begin)
+        X = np.ndarray((Ximg.shape[0], Ximg.shape[1], patch_size[0], patch_size[1]))
+        X[:, :, pad_begin[1]:pad_end[1], pad_begin[0]:pad_end[0]] = \
+            Ximg[:, :, crop_begin[1]:crop_end[1], crop_begin[0]:crop_end[0]]
+
+        return X

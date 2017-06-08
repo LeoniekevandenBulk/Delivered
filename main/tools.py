@@ -5,6 +5,9 @@ from PIL import Image
 import matplotlib.pyplot as plt
 import nibabel as nib
 
+from BatchGenerator import BatchGenerator
+from BatchAugmenter import BatchAugmenter
+
 
 # function to get a list of file of a given extension, both the absolute path and the filename
 
@@ -41,16 +44,18 @@ def show_slices(vol_slices, seg_slices):
     for i, slice in enumerate(seg_slices):
         axes[1, i].imshow(slice.T, cmap="gray", origin="lower", clim=(0, 2))
 
-def show_slices_x3(vol_slices, seg_slices, pred_slices):
+def show_slices_x4(vol_slices, seg_slices, label_slices, pred_slices):
     """ Function to display row of image slices """
     nslice = len(vol_slices)
-    fig, axes = plt.subplots(3, nslice)
+    fig, axes = plt.subplots(4, nslice)
     for i, slice in enumerate(vol_slices):
         axes[0, i].imshow(slice.T, cmap="gray", origin="lower")
     for i, slice in enumerate(seg_slices):
         axes[1, i].imshow(slice.T, cmap="gray", origin="lower", clim=(0, 2))
-    for i, slice in enumerate(pred_slices):
+    for i, slice in enumerate(label_slices):
         axes[2, i].imshow(slice.T, cmap="gray", origin="lower", clim=(0, 2))
+    for i, slice in enumerate(pred_slices):
+        axes[3, i].imshow(slice.T, cmap="gray", origin="lower", clim=(0, 2))
 
 
 def output_size_for_input(in_size, depth):
@@ -63,6 +68,7 @@ def output_size_for_input(in_size, depth):
         in_size = in_size*2
         in_size -= 4
     return in_size
+
 
 def show_volumes(vol_batch, seg_batch):
     for i, (vol, seg) in enumerate(zip(vol_batch, seg_batch)):
@@ -82,62 +88,66 @@ def show_volumes(vol_batch, seg_batch):
         seg_slice_2 = seg_array[:, :, mid_2]
         show_slices([vol_slice_0, vol_slice_1, vol_slice_2], [seg_slice_0, seg_slice_1, seg_slice_2])
         plt.suptitle("Center slices for 3D volume "+vol, size=40)
-        plt.show(block=False)
-        plt.pause(0.5)
+        #plt.show(block=False)
+        #plt.pause(0.5)
+        plt.savefig('volume_'+i+'.png')
 
-def show_preprocessing(nr_tra_volumes, train_batch_dir, batchGenerator, patch_size, out_size, img_center):
+def show_preprocessing(batchGenerator, augmenter, aug_params, \
+                       patch_size, out_size, img_center, target_class):
 
     X_0 = []
     Y_0 = []
     for i in range(5):
-        i_vol = int(np.random.random() * nr_tra_volumes)
         # Generate batch
-        X_tra, Y_tra, M_tra = batchGenerator.get_batch(tra_list, train_batch_dir, 1,
-                                                       patch_size, out_size, img_center, target_class=target_class,
-                                                       group_percentages=(0.5, 0.5))
+        X_tra, Y_tra= batchGenerator.get_train_batch(batch_size = 1)
 
         # Augment data batch
-        X_tra, Y_tra = augmenter.getAugmentation(X_tra, Y_tra, aug_params)
-
-        # Clip, then apply zero mean std 1 normalization
-        X_tra = np.clip(X_tra, -200, 300)
-        X_tra = (X_tra - X_tra.mean()) / X_tra.std()
-
-        # If lesion netwerk, then apply mask
-        if target_class == 'lesion':
-            # X_mask = mask_network.predict(X_tra)
-            X_mask = M_tra  # temporarily use ground truth mask for lesion network
-            X_tra = (X_mask > 0).astype(np.int32) * X_tra
+        #X_tra, Y_tra = augmenter.getAugmentation(X_tra, Y_tra, aug_params)
 
         # Pad X and crop Y for UNet, note that array dimensions change here!
         X_tra, Y_tra = batchGenerator.pad_and_crop(X_tra, Y_tra, patch_size, out_size, img_center)
-        X_0.append(X)
-        Y_0.append(Y)
+        X_0.append(X_tra[0, 0, :, :])
+        Y_0.append(Y_tra[0, 0, :, :])
+        print('Show preprocessing X min {:.2f} max {:.2f}, Y min {:.2f} max {:.2f}'.format(
+            np.min(X_tra), np.max(X_tra), np.min(Y_tra), np.max(Y_tra)))
+
     show_slices(X_0, Y_0)
     plt.suptitle("Preprocessed slices", size=40)
-    plt.show(block=False)
-    plt.pause(0.5)
+    #plt.show(block=False)
+    #plt.pause(0.5)
+    plt.savefig('Preprocess.png')
 
-def show_segmentation_prediction(batchGenerator, network, vol_list, batch_dir,
-                                 patch_size, out_size, img_center):
+def show_segmentation_prediction(trainer, network, threshold, val_list, batch_dir,
+                                 patch_size, out_size, img_center, target_class, mask, mask_network):
+
+
     nr_test_batches = 5 # batch_size per test
     batch_size = 1
+
+    # Define batch generator
+    batchGenerator = BatchGenerator(mask_network, threshold, val_list, val_list, batch_dir, target_class,
+                                    group_percentages=(0.5, 0.5), read_slices=False, nr_slices_per_volume=1)
+
     X_0 = []
     Y_0 = []
     target_preds = []
     val_preds = []
+    val_labels = []
     for i in range(nr_test_batches):
-        X_val, Y_val = batchGenerator.get_batch(vol_list, batch_dir, batch_size,
-                                                   patch_size, out_size, img_center, group_labels="lesion",
-                                                   group_percentages=(0.5, 0.5))
-        weights_map = np.ndarray(Y_val.shape)
-        weights_map.fill(1)
-        _, _, _, _, prediction = \
-            network.val_fn(X_val.astype(np.float32), Y_val.astype(np.int32), weights_map.astype(np.float32))
+        X_val, Y_val = batchGenerator.get_val_batch(batch_size)
+
+        # Pad X and crop Y for UNet, note that array dimensions change here!
+        X_val, Y_val = batchGenerator.pad_and_crop(X_val, Y_val, patch_size, out_size, img_center)
+
+        prediction, loss, accuracy = trainer.validate_batch(network, X_val, Y_val)
+        prediction = prediction.reshape(batch_size, 1, out_size[0], out_size[1], 2)[:, :, :, :, 1]
+
         X_0.append(X_val[0,0,:,:])
         Y_0.append(Y_val[0,0,:,:])
-        val_preds.append(prediction.reshape(out_size[0], out_size[1],2)[:,:,1])
-    show_slices_x3(X_0, Y_0, val_preds)
+        val_preds.append(prediction[0,0,:,:])
+        val_labels.append((prediction[0,0,:,:] > threshold).astype(np.int32))
+        a=3
+    show_slices_x4(X_0, Y_0, val_labels, val_preds)
     plt.suptitle("Segmentation results for validation images ", size=40)
     plt.savefig('Validation_segmentation.png')
-    plt.pause(0.5)
+    #plt.pause(0.5)
