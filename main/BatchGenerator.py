@@ -7,70 +7,149 @@ Batch generator
 '''
 
 class BatchGenerator:
-    def __init__(self, mask_network, threshold):
+    def __init__(self, mask_network, threshold, tra_list, val_list, train_batch_dir, target_class,
+                read_slices, slice_files,
+                group_percentages, nr_slices_per_volume):
         self.mask_network = mask_network
         self.threshold = threshold
+        self.train_batch_dir = train_batch_dir
 
-    def get_batch(self, vol_list, batch_dir, batch_size, patch_size, out_size, img_center, target_class="liver", group_percentages=(0.5, 0.5)):
+        if read_slices:
+            print ('Reading slices...')
+            self.vol_tra_slices = np.load(slice_files[0]) # Why is this required ?!
+            print ('{} vol_tra_slices min {} max {} '.format(self.vol_tra_slices.shape[0], np.min(self.vol_tra_slices), np.max(self.vol_tra_slices)))
+            self.seg_tra_slices = np.load(slice_files[1])
+            print('{} seg_tra_slices min {} max {} '.format(self.seg_tra_slices.shape[0],np.min(self.seg_tra_slices), np.max(self.seg_tra_slices)))
+            self.n_slices = self.vol_tra_slices.shape[0]
+            self.vol_val_slices = np.load(slice_files[2]) # Why is this required ?!
+            print('{} vol_val_slices min {} max {} '.format(self.vol_val_slices.shape[0],np.min(self.vol_val_slices), np.max(self.vol_val_slices)))
+            self.seg_val_slices = np.load(slice_files[3])
+            print('{} seg_val_slices min {} max {} '.format(self.seg_val_slices.shape[0],np.min(self.seg_val_slices), np.max(self.seg_val_slices)))
+            self.n_val_slices = self.vol_val_slices.shape[0]
+            print('Done reading slices.')
+        else:
+            print('Collecting slices...')
+            self.n_tra_slices = nr_slices_per_volume * len(tra_list)
+            self.vol_tra_slices, self.seg_tra_slices = self.collect_training_slices(tra_list, self.n_tra_slices,
+                                                        nr_slices_per_volume, target_class, group_percentages)
+            np.save('vol_tra_slices', self.vol_tra_slices)
+            np.save('seg_tra_slices', self.seg_tra_slices)
+            self.n_val_slices = nr_slices_per_volume * len(val_list)
+            self.vol_val_slices, self.seg_val_slices = self.collect_training_slices(val_list, self.n_val_slices,
+                                                        nr_slices_per_volume, target_class, group_percentages)
+            np.save('vol_val_slices', self.vol_val_slices)
+            np.save('seg_val_slices', self.seg_val_slices)
+            print('Done collecting slices.')
 
-        ps_x, ps_y = patch_size
-        out_x, out_y = out_size
+
+    def collect_training_slices(self, vol_list, n_slices, nr_slices_per_volume, target_class, group_percentages):
+        vol_slices = np.zeros((n_slices, 512, 512))
+        seg_slices = np.zeros((n_slices, 512, 512))
+        i_slice = 0
+        for i, i_vol in enumerate(vol_list):
+            print("get {} slices from {}-th volume #{}".format(nr_slices_per_volume, i, i_vol))
+            vol = self.train_batch_dir+"/volume-{0}.nii".format(i_vol)
+            vol_proxy = nib.load(vol)
+            vol_array = vol_proxy.get_data()
+            seg = self.train_batch_dir+"/segmentation-{0}.nii".format(i_vol)
+            seg_proxy = nib.load(seg)
+            seg_array = seg_proxy.get_data()
+            name = vol.split('-')[1].split('.')[0]
+
+            # re-label seg_array according to group_labels
+            seg_label = self.group_label(seg_array, target_class)
+
+            for s in range(nr_slices_per_volume):
+                label = np.random.random() < group_percentages[0]
+                slice = self.select_slice(label)
+                #slice = np.int(np.random.random() * vol_array.shape[2])
+
+                # If lesion netwerk, then apply mask
+                if target_class == 'lesion':
+                    X_mask = np.ones(seg_array.shape)
+                    mask = 'ground_truth'
+                    if mask == 'liver':
+                        X_mask = self.mask_network.predict(vol_array[:, :, slice])
+                    elif mask == 'ground_truth':
+                        X_mask = (seg_array[:, :, slice]+1)//2 # temporarily use ground truth mask for lesion network
+                    vol_array[:, :, slice] = (X_mask > 0.5).astype(np.int32) * vol_array[:, :, slice]
+
+                vol_slices[i_slice, :, :] = vol_array[:, :, slice]
+                seg_slices[i_slice, :, :] = seg_label[:, :, slice]
+                i_slice += 1
+
+        # Clip, then apply zero mean std 1 normalization
+        vol_slices = np.clip(vol_slices, -200, 300)
+        vol_slices = (vol_slices + 200) / 500
+
+        return vol_slices, seg_slices
+
+    def get_train_batch(self, batch_size):
+
         img_x, img_y = (512, 512)
-        #nr_volumes = len(vol_list)
 
         X_batch = np.ndarray((batch_size, 1, img_y, img_x))
         Y_batch = np.ndarray((batch_size, 1, img_y, img_x))
-        M_batch = np.ndarray((batch_size, 1, img_y, img_x))
+
+        n_slices = self.vol_tra_slices.shape[0]
 
         #Get a random volume and a random slice from it, batch_size times
         for b in range(batch_size):
 
-            i_vol = np.random.choice(vol_list, replace=True)#replace=False when using all volumes
+            slice = np.int(np.random.random() * n_slices)
 
-            vol = batch_dir + "/volume-{0}.nii".format(i_vol)
-            vol_proxy = nib.load(vol)
-            vol_array = vol_proxy.get_data()
-
-            seg = batch_dir + "/segmentation-{0}.nii".format(i_vol)
-            seg_proxy = nib.load(seg)
-            seg_array = seg_proxy.get_data()
-
-            seg_group_labels = self.group_label(seg_array, target_class, group_percentages)
-
-            ran = np.random.randint(10)
-            if(ran < group_percentages[0]*10):
-                label = 0
-            else:
-                label = 1
-
-            slice = self.select_slice(group_percentages, label) # int(np.random.random() * vol_array.shape[2])
-
-            X = vol_array[:, :, slice]
-            Y = seg_group_labels[:, :, slice]
-            M = (seg_array[:, :, slice]+1)//2
+            X = self.vol_tra_slices[slice, :, :]
+            Y = self.seg_tra_slices[slice, :, :]
 
             X_batch[b, 0, :, :] = X
             Y_batch[b, 0, :, :] = Y
-            M_batch[b, 0, :, :] = M
 
-        return X_batch, Y_batch, M_batch # temporarily pass on ground truth mask for lesion network
+        return X_batch, Y_batch # temporarily pass on ground truth mask for lesion network
 
-    def group_label(self, seg_array, group_labels, group_percentages):
+    def get_val_batch(self, batch_size):
+
+        img_x, img_y = (512, 512)
+
+        X_batch = np.ndarray((batch_size, 1, img_y, img_x))
+        Y_batch = np.ndarray((batch_size, 1, img_y, img_x))
+
+        n_slices = self.vol_val_slices.shape[0]
+
+        #Get a random volume and a random slice from it, batch_size times
+        for b in range(batch_size):
+
+            slice = np.int(np.random.random() * n_slices)
+
+            X = self.vol_val_slices[slice, :, :]
+            Y = self.seg_val_slices[slice, :, :]
+
+            X_batch[b, 0, :, :] = X
+            Y_batch[b, 0, :, :] = Y
+
+        return X_batch, Y_batch # temporarily pass on ground truth mask for lesion network
+
+    def group_label(self, seg_array, group_labels):
         # re-label seg_array according to group_labels
         if group_labels == "liver": #(0, (1,2))
-            seg_group_labels = (seg_array.astype(np.int32)+1) // 2 #seg_group_labels = [x-1 if x > 1 else x for x in np.nditer(seg_array)]
+            lbl_max = np.max(np.max(seg_array, axis=1), axis=0)  # maximum label per slice
+            self.lbl_max_0_idx = np.where(lbl_max == 0)[0]  # slice indices of slices with maximum label 0
+            self.lbl_max_1_idx = np.where(lbl_max > 0)[0]  # slice indices of slices with maximum label 1
+            seg_group_labels = (seg_array.astype(
+                np.int32) + 1) // 2  # seg_group_labels = [x-1 if x > 1 else x for x in np.nditer(seg_array)]
         elif group_labels == "lesion": #((0,1),2)
-            seg_group_labels = seg_array.astype(np.int32) // 2 #[x-1 if x > 0 else x for x in np.nditer(seg_array)]
+            lbl_max = np.max(np.max(seg_array, axis=1), axis=0)  # maximum label per slice
+            self.lbl_max_0_idx = np.where(lbl_max == 1)[0]  # slice indices of slices with maximum label 0
+            self.lbl_max_1_idx = np.where(lbl_max == 2)[0]  # slice indices of slices with maximum label 1
+            seg_group_labels = seg_array.astype(np.int32) // 2  # [x-1 if x > 0 else x for x in np.nditer(seg_array)]
         else:
+            lbl_max = np.max(np.max(seg_array, axis=1), axis=0)  # maximum label per slice
+            self.lbl_max_0_idx = np.where(lbl_max < 2)[0]  # slice indices of slices with maximum label 0
+            self.lbl_max_1_idx = np.where(lbl_max == 2)[0]  # slice indices of slices with maximum label 1
             seg_group_labels = seg_array.astype(np.int32)
-
-        lbl_max = np.max(np.max(seg_group_labels, axis=1), axis=0)  # maximum label per slice
-        self.lbl_max_0_idx = np.where(lbl_max == 0)[0]  # slice indices of slices with maximum label 0
-        self.lbl_max_1_idx = np.where(lbl_max == 1)[0]  # slice indices of slices with maximum label 1
 
         return seg_group_labels
 
-    def select_slice(self, group_percentages, label):
+    def select_slice(self, label):
 
         #TODO take exactly <group_percentage> slices from each group (not randomly)
         if label == 0 or len(self.lbl_max_1_idx) == 0:
@@ -91,7 +170,7 @@ class BatchGenerator:
         crop_end = img_size - np.clip(extend - patch_array/2, 0, None)
         pad_begin = patch_array // 2 - img_center
         pad_end = pad_begin + (crop_end - crop_begin)
-        X = np.ndarray((Ximg.shape[0], Ximg.shape[1], patch_size[0], patch_size[1]))
+        X = np.zeros((Ximg.shape[0], Ximg.shape[1], patch_size[0], patch_size[1]))
         X[:, :, pad_begin[1]:pad_end[1], pad_begin[0]:pad_end[0]] = \
                 Ximg[:, :, crop_begin[1]:crop_end[1], crop_begin[0]:crop_end[0]]
         # crop Y
@@ -100,7 +179,7 @@ class BatchGenerator:
         crop_end = img_size - np.clip(extend - out_array/2, 0, None)
         pad_begin = np.clip(out_array // 2 - img_center, 0, None)
         pad_end = pad_begin + np.clip(crop_end - crop_begin, 0, None)
-        Y = np.ndarray((Yimg.shape[0], Yimg.shape[1], out_size[0], out_size[1]))
+        Y = np.zeros((Yimg.shape[0], Yimg.shape[1], out_size[0], out_size[1]))
         Y[:, :, pad_begin[1]:pad_end[1], pad_begin[0]:pad_end[0]] = \
                 Yimg[:, :, crop_begin[1]:crop_end[1], crop_begin[0]:crop_end[0]]
         sum_label_outside = np.sum(Yimg[:,:,:crop_begin[1],:]) + np.sum(Yimg[:,:,crop_end[1]:,:]) + \
@@ -109,26 +188,3 @@ class BatchGenerator:
             print("Warning: sum labels outside output crop is {}".format(sum_label_outside))
 
         return X, Y
-
-
-    def pad (self, Ximg, patch_size, img_center):
-
-        # Cropping and padding for UNet
-        img_size = np.asarray((Ximg.shape[2], Ximg.shape[3]))
-        extend = img_size - img_center
-
-        # pad X
-        patch_array = np.asarray(patch_size)
-        crop_begin = np.clip(img_center - patch_array/2, 0, None) # [0, 0]
-        crop_end = img_size - np.clip(extend - patch_array/2, 0, None)
-        pad_begin = patch_array // 2 - img_center
-        pad_end = pad_begin + (crop_end - crop_begin)
-        X = np.ndarray((Ximg.shape[0], Ximg.shape[1], patch_size[0], patch_size[1]))
-        X[:, :, pad_begin[1]:pad_end[1], pad_begin[0]:pad_end[0]] = \
-                Ximg[:, :, crop_begin[1]:crop_end[1], crop_begin[0]:crop_end[0]]
-
-        return X
-
-
-
-

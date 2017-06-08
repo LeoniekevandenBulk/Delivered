@@ -3,6 +3,13 @@ import lasagne
 import numpy as np
 np.set_printoptions(precision=2, suppress=True)
 
+SURFsara = True
+
+import matplotlib
+if SURFsara:
+    matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
 from UNetClass import UNetClass
 from BatchGenerator import BatchGenerator
 from BatchAugmenter import BatchAugmenter
@@ -12,12 +19,7 @@ from tools import *
 
 import time
 
-SURFsara = False
 
-import matplotlib
-if SURFsara:
-    matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 
 matplotlib.rcParams['figure.figsize'] = (40, 24)
 matplotlib.rcParams['xtick.labelsize'] = 30
@@ -29,6 +31,8 @@ class Trainer:
     '''
     def __init__(self, SURFsara):
         self.SURFsara = SURFsara
+
+
 
     '''
         Function to read an existing network from file.
@@ -72,8 +76,9 @@ class Trainer:
                         train_batch_dir, inputs, targets, weights,
                         target_class, tra_list, val_list,
                         aug_params, learning_rate,
-                        nr_epochs, nr_train_batches, nr_val_batches, batch_size
-,                       mask_network = None, threshold = 0):
+                        nr_epochs, nr_train_batches, nr_val_batches, batch_size,
+                        read_slices, slice_files,
+                        mask_network = None, threshold = 0):
         
         # Initialize the network        
         network = UNetClass(inputs, 
@@ -86,11 +91,14 @@ class Trainer:
 
         # Create theano functions
         print("Creating Theano training and validation functions...")
-        network.train_fn, network.val_fn = network.define_updates(inputs, targets, weights)
+        network.train_fn, network.val_fn = network.define_updates(inputs, targets, weights,
+                                                                  learning_rate=learning_rate, momentum=0.9, l2_lambda=1e-5)
         network.predict_fn = network.define_predict(inputs)
 
         # Define batch generator
-        batchGenerator = BatchGenerator(mask_network, threshold)
+        batchGenerator = BatchGenerator(mask_network, threshold, tra_list, val_list, train_batch_dir, target_class,
+                                        read_slices, slice_files,
+                                        group_percentages=(0.5, 0.5), nr_slices_per_volume=100)
 
         # Define data augmenter
         augmenter = BatchAugmenter()
@@ -105,13 +113,16 @@ class Trainer:
         val_dice_lst = []
         tra_ce_lst = []
         val_ce_lst = []
-        best_val_loss = 10000
+        best_val_loss = 1
         best_val_threshold = 0
 
+
         # Test de BatchGenerator en pre-processing steps
-        test_preprocessing = False
+        test_preprocessing = True
         if test_preprocessing:
-            show_preprocessing(tra_list, train_batch_dir, batchGenerator, patch_size, out_size, img_center)
+            print ('Show preprocessed slices')
+            show_preprocessing(batchGenerator, augmenter, aug_params, \
+                               patch_size, out_size, img_center, target_class)
 
         for epoch in range(nr_epochs):
             print('Epoch {0}/{1}'.format(epoch + 1,nr_epochs))
@@ -120,47 +131,40 @@ class Trainer:
             tra_loss = []
             tra_dices = []
             tra_ces = []
-                
+
             # Training loop
             for batch in range(nr_train_batches):
-                print('Batch {0}/{1}'.format(batch + 1, nr_train_batches))
+                #print('Batch {0}/{1}'.format(batch + 1, nr_train_batches))
                 
                 # Generate batch
-                X_tra, Y_tra, M_tra = batchGenerator.get_batch(tra_list, train_batch_dir, batch_size,
-                                     patch_size, out_size, img_center, target_class=target_class, 
-                                     group_percentages=(0.5,0.5))
-
+                X_tra, Y_tra = batchGenerator.get_train_batch(batch_size)
+                #print ('get batch X min {:.2f} max {:.2f}, Y min {:.2f} max {:.2f}'.format(
+                #      np.min(X_tra), np.max(X_tra), np.min(Y_tra), np.max(Y_tra)))
                 # Augment data batch
-                X_tra, Y_tra = augmenter.getAugmentation(X_tra, Y_tra, aug_params)
-
-                # Clip, then apply zero mean std 1 normalization
-                X_tra = np.clip(X_tra, -200, 300)
-                #X_tra = (X_tra - X_tra.mean()) / X_tra.std()
-                X_tra = (X_tra + 200) / 500
-
-                # If lesion netwerk, then apply mask
-                if target_class == 'lesion':
-                    if mask == 'liver':
-                        X_mask = mask_network.predict(X_tra)
-                    elif mask == 'ground truth':
-                        X_mask = M_tra # temporarily use ground truth mask for lesion network
-                        X_tra = (X_mask > 0).astype(np.int32) * X_tra
+                #X_tra, Y_tra = augmenter.getAugmentation(X_tra, Y_tra, aug_params)
 
                 # Pad X and crop Y for UNet, note that array dimensions change here!
                 X_tra, Y_tra = batchGenerator.pad_and_crop(X_tra, Y_tra, patch_size, out_size, img_center)
+                #print ('pad & crop X min {:.2f} max {:.2f}, Y min {:.2f} max {:.2f}'.format(
+                #      np.min(X_tra), np.max(X_tra), np.min(Y_tra), np.max(Y_tra)))
 
                 #Train and return result for evaluation (reshape to out_size)
                 prediction, loss, accuracy = self.train_batch(network, X_tra, Y_tra)
                 prediction = prediction.reshape(batch_size, 1, out_size[0], out_size[1], 2)[:,:,:,:,1]
 
                 # Get Evaluation report
+                if batch%100 == 0:
+                    print ('batch {}/{}, X min {:.2f} max {:.2f}, Y min {:.2f} max {:.2f}, pred min {:.2f} max {:.2f}'.format(
+                        batch, nr_train_batches, np.min(X_tra), np.max(X_tra), np.min(Y_tra), np.max(Y_tra),
+                        np.min(prediction), np.max(prediction)))
                 error_report = evaluator.get_evaluation(Y_tra, prediction)
                 dice = error_report[0][1]
                 cross_entropy = error_report[1][1]
 
                 # Report and save performance
-                print ('training loss {:.2f}, dice {:.2f}, cross entropy {:.2f}, cpu {:.2f} min'.format( \
-                    np.asscalar(loss), dice, cross_entropy, (time.time() - start_time)/60))
+                if batch%100 == 0:
+                    print ('batch {}/{}, {} slc, training loss {:.2f}, dice {:.2f}, cross entropy {:.2f}, cpu {:.2f} min'.format( \
+                        batch, nr_train_batches, batch_size, np.asscalar(loss), dice, cross_entropy, (time.time() - start_time)/60))
                 tra_loss.append(loss)
                 tra_dices.append(dice)
                 tra_ces.append(cross_entropy)
@@ -177,22 +181,7 @@ class Trainer:
             for batch in range(nr_val_batches):
         
                 # Generate batch
-                X_val, Y_val, M_val = batchGenerator.get_batch(val_list, train_batch_dir, batch_size,
-                                     patch_size, out_size, img_center, target_class=target_class, 
-                                     group_percentages=(0.5,0.5))
-
-                # Clip, then apply zero mean std 1 normalization
-                X_val = np.clip(X_val, -200, 300)
-                #X_val = (X_val - X_val.mean()) / X_val.std()
-                X_val = (X_val + 200) / 500
-
-                # If lesion netwerk, then apply mask
-                if target_class == 'lesion':
-                    if mask == 'liver':
-                        X_mask = mask_network.predict(X_val)
-                    elif mask == 'ground truth':
-                        X_mask = M_val # temporarily use ground truth mask for lesion network
-                        X_val = (X_mask > 0).astype(np.int32) * X_val
+                X_val, Y_val = batchGenerator.get_val_batch(batch_size)
 
                 # Pad X and crop Y for UNet, note that array dimensions change here!
                 X_val, Y_val = batchGenerator.pad_and_crop(X_val, Y_val, patch_size, out_size, img_center)
@@ -203,14 +192,19 @@ class Trainer:
 
 
                 # Get evaluation report
+                if batch % 100 == 0:
+                    print ('batch {}/{}, X min {:.2f} max {:.2f}, Y min {:.2f} max {:.2f}, pred min {:.2f} max {:.2f}'.format(
+                        batch, nr_val_batches, np.min(X_tra), np.max(X_tra), np.min(Y_val), np.max(Y_val),
+                          np.min(prediction), np.max(prediction)))
                 error_report = evaluator.get_evaluation(Y_val, prediction)
                 dice = error_report[0][1]
                 threshold = error_report[0][2]
                 cross_entropy = error_report[1][1]
 
                 # Report and save performance
-                print ('validation loss {:.2f}, threshold {:.2f}, dice {:.2f}, cross entropy {:.2f}, cpu {:.2f} min'.format( \
-                    np.asscalar(loss), threshold, dice, cross_entropy, (time.time() - start_time)/60))
+                if batch % 100 == 0:
+                    print ('batch {}/{}, {} slc, validation loss {:.2f}, threshold {:.2f}, dice {:.2f}, cross entropy {:.2f}, cpu {:.2f} min'.format( \
+                        batch, nr_val_batches, batch_size, np.asscalar(loss), threshold, dice, cross_entropy, (time.time() - start_time)/60))
                 val_loss.append(loss)
                 val_dices.append(dice)
                 val_ces.append(cross_entropy)
@@ -232,10 +226,13 @@ class Trainer:
                 best_val_threshold = np.mean(val_thres)
                 # save networks
                 params = lasagne.layers.get_all_param_values(network.net)
-                np.savez(os.path.join('../../Networks/test/', network_name + '_' + str(best_val_loss) + '_' + str(best_val_threshold) + '.npz'), params=params)
+                np.savez(os.path.join('./', network_name + '_' + str(best_val_loss) + '_' + str(best_val_threshold) + '.npz'), params=params)
+
+            np.savez('results', tra_loss_lst, tra_dice_lst, tra_ce_lst, val_loss_lst, val_dice_lst, val_ce_lst,
+                    best_val_loss, best_val_threshold)
 
             # Plot result of this epoch
-            if not self.SURFsara and epoch == nr_epochs-1:
+            if epoch == nr_epochs-1:
                 self.plotResults(tra_loss_lst, tra_dice_lst, tra_ce_lst, val_loss_lst, val_dice_lst, val_ce_lst,
                     best_val_loss, best_val_threshold)
 
@@ -247,14 +244,11 @@ class Trainer:
     '''
     def train_batch(self, network, X_tra, Y_tra):
 
-        weights_map = np.ndarray(Y_tra.shape)
-        weights_map.fill(1)
+        weights_map = Y_tra + 0.1 # Lesion pixels are weigthed 100 times more than non-lesion pixels
+        #weights_map = np.ndarray(Y_tra.shape)
+        #weights_map.fill(1)
 
-        if self.SURFsara:
-            loss, l2_loss, accuracy, target_prediction, prediction = \
-            network.train_fn(X_tra.astype(np.float64), Y_tra.astype(np.int32), weights_map.astype(np.float64))
-        else:
-            loss, l2_loss, accuracy, target_prediction, prediction = \
+        loss, l2_loss, accuracy, target_prediction, prediction = \
             network.train_fn(X_tra.astype(np.float32), Y_tra.astype(np.int32), weights_map.astype(np.float32))
 
         return prediction, loss, accuracy
@@ -265,14 +259,11 @@ class Trainer:
     '''
     def validate_batch(self, network, X_val, Y_val):
 
-        weights_map = np.ndarray(Y_val.shape)
-        weights_map.fill(1)
+        weights_map = Y_val + 0.1 # Lesion pixels are weigthed 100 times more than non-lesion pixels
+        #weights_map = np.ndarray(Y_tra.shape)
+        #weights_map.fill(1)
 
-        if self.SURFsara:
-            loss, l2_loss, accuracy, target_prediction, prediction = \
-            network.val_fn(X_val.astype(np.float64), Y_val.astype(np.int32), weights_map.astype(np.float64))
-        else:
-            loss, l2_loss, accuracy, target_prediction, prediction = \
+        loss, l2_loss, accuracy, target_prediction, prediction = \
             network.val_fn(X_val.astype(np.float32), Y_val.astype(np.int32), weights_map.astype(np.float32))
 
         return prediction, loss, accuracy
@@ -285,10 +276,7 @@ class Trainer:
         weights_map = np.ndarray(Y_val.shape)
         weights_map.fill(1)
 
-        if self.SURFsara:
-            prediction = network.predict_fn(X_val.astype(np.float64))
-        else:            
-            prediction = network.predict_fn(X_val.astype(np.float32))
+        prediction = network.predict_fn(X_val.astype(np.float32))
 
         return prediction[0]
 
@@ -314,13 +302,14 @@ class Trainer:
         #val_ce_plt, = plt.plot(range(len(val_ce_lst)), val_ce_lst, 'r')
         plt.xlabel('epoch')
         plt.ylabel('loss')
+        plt.ylim([0,0.25])
         plt.legend([tra_loss_plt, val_loss_plt], #, tra_ce_plt, val_ce_plt],
                ['training loss', 'validation loss'], #, 'training cross_entropy', 'validation cross_entropy'],
                loc='center left', bbox_to_anchor=(1, 0.5))
-        plt.title('Best validation loss = {:.2f}% with threshold {:.2f}'.format(best_val_loss,
+        plt.title('Best validation loss = {:.2f} with threshold {:.2f}'.format(best_val_loss,
                 best_val_threshold), size=40)
-        plt.show(block=False)
-        plt.pause(.5)
+        #plt.show(block=False)
+        #plt.pause(.5)
 
         # Save plot        
         plt.savefig('Performance.png')

@@ -1,0 +1,1 @@
+med2image.py -i vol.nii -d out -o volume.jpg -s -1
