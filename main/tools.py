@@ -118,7 +118,8 @@ def show_preprocessing(batchGenerator, augmenter, aug_params, \
     plt.savefig('Preprocess.png')
 
 def show_segmentation_prediction(trainer, network, threshold, val_list, batch_dir,
-                                 patch_size, out_size, img_center, target_class, mask, mask_network):
+                                 patch_size, out_size, img_center, target_class,
+                                 read_slices, slice_files, weight_balance, mask, mask_network):
 
 
     nr_test_batches = 5 # batch_size per test
@@ -126,7 +127,7 @@ def show_segmentation_prediction(trainer, network, threshold, val_list, batch_di
 
     # Define batch generator
     batchGenerator = BatchGenerator(mask_network, threshold, val_list, val_list, batch_dir, target_class,
-                                    group_percentages=(0.5, 0.5), read_slices=False, nr_slices_per_volume=1)
+                                    read_slices, slice_files, nr_slices_per_volume=1, group_percentages=(0.5, 0.5))
 
     X_0 = []
     Y_0 = []
@@ -139,7 +140,7 @@ def show_segmentation_prediction(trainer, network, threshold, val_list, batch_di
         # Pad X and crop Y for UNet, note that array dimensions change here!
         X_val, Y_val = batchGenerator.pad_and_crop(X_val, Y_val, patch_size, out_size, img_center)
 
-        prediction, loss, accuracy = trainer.validate_batch(network, X_val, Y_val)
+        prediction, loss, accuracy = trainer.validate_batch(network, X_val, Y_val, weight_balance)
         prediction = prediction.reshape(batch_size, 1, out_size[0], out_size[1], 2)[:, :, :, :, 1]
 
         X_0.append(X_val[0,0,:,:])

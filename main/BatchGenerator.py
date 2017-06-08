@@ -8,8 +8,7 @@ Batch generator
 
 class BatchGenerator:
     def __init__(self, mask_network, threshold, tra_list, val_list, train_batch_dir, target_class,
-                read_slices, slice_files,
-                group_percentages, nr_slices_per_volume):
+                read_slices, slice_files, nr_slices_per_volume, group_percentages):
         self.mask_network = mask_network
         self.threshold = threshold
         self.train_batch_dir = train_batch_dir
@@ -68,7 +67,7 @@ class BatchGenerator:
                 if target_class == 'lesion':
                     X_mask = np.ones(seg_array.shape)
                     mask = 'ground_truth'
-                    if mask == 'liver':
+                    if mask == 'liver_network':
                         X_mask = self.mask_network.predict(vol_array[:, :, slice])
                     elif mask == 'ground_truth':
                         X_mask = (seg_array[:, :, slice]+1)//2 # temporarily use ground truth mask for lesion network

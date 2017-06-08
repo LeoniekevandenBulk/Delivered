@@ -77,7 +77,7 @@ class Trainer:
                         target_class, tra_list, val_list,
                         aug_params, learning_rate,
                         nr_epochs, nr_train_batches, nr_val_batches, batch_size,
-                        read_slices, slice_files,
+                        read_slices, slice_files, nr_slices_per_volume, weight_balance,
                         mask_network = None, threshold = 0):
         
         # Initialize the network        
@@ -97,8 +97,8 @@ class Trainer:
 
         # Define batch generator
         batchGenerator = BatchGenerator(mask_network, threshold, tra_list, val_list, train_batch_dir, target_class,
-                                        read_slices, slice_files,
-                                        group_percentages=(0.5, 0.5), nr_slices_per_volume=100)
+                                        read_slices, slice_files, nr_slices_per_volume,
+                                        group_percentages=(0.5, 0.5))
 
         # Define data augmenter
         augmenter = BatchAugmenter()
@@ -121,7 +121,7 @@ class Trainer:
         test_preprocessing = True
         if test_preprocessing:
             print ('Show preprocessed slices')
-            show_preprocessing(batchGenerator, augmenter, aug_params, \
+            show_preprocessing(batchGenerator, augmenter, aug_params,
                                patch_size, out_size, img_center, target_class)
 
         for epoch in range(nr_epochs):
@@ -149,7 +149,7 @@ class Trainer:
                 #      np.min(X_tra), np.max(X_tra), np.min(Y_tra), np.max(Y_tra)))
 
                 #Train and return result for evaluation (reshape to out_size)
-                prediction, loss, accuracy = self.train_batch(network, X_tra, Y_tra)
+                prediction, loss, accuracy = self.train_batch(network, X_tra, Y_tra, weight_balance)
                 prediction = prediction.reshape(batch_size, 1, out_size[0], out_size[1], 2)[:,:,:,:,1]
 
                 # Get Evaluation report
@@ -163,7 +163,7 @@ class Trainer:
 
                 # Report and save performance
                 if batch%100 == 0:
-                    print ('batch {}/{}, {} slc, training loss {:.2f}, dice {:.2f}, cross entropy {:.2f}, cpu {:.2f} min'.format( \
+                    print ('batch {}/{}, {} slc, training loss {:.2f}, dice {:.2f}, cross entropy {:.2f}, cpu {:.2f} min'.format(
                         batch, nr_train_batches, batch_size, np.asscalar(loss), dice, cross_entropy, (time.time() - start_time)/60))
                 tra_loss.append(loss)
                 tra_dices.append(dice)
@@ -187,7 +187,7 @@ class Trainer:
                 X_val, Y_val = batchGenerator.pad_and_crop(X_val, Y_val, patch_size, out_size, img_center)
 
                 # Get prediction on batch
-                prediction, loss, accuracy = self.validate_batch(network, X_val, Y_val)
+                prediction, loss, accuracy = self.validate_batch(network, X_val, Y_val, weight_balance)
                 prediction = prediction.reshape(batch_size, 1, out_size[0], out_size[1], 2)[:, :, :, :, 1]
 
 
@@ -203,7 +203,7 @@ class Trainer:
 
                 # Report and save performance
                 if batch % 100 == 0:
-                    print ('batch {}/{}, {} slc, validation loss {:.2f}, threshold {:.2f}, dice {:.2f}, cross entropy {:.2f}, cpu {:.2f} min'.format( \
+                    print ('batch {}/{}, {} slc, validation loss {:.2f}, threshold {:.2f}, dice {:.2f}, cross entropy {:.2f}, cpu {:.2f} min'.format(
                         batch, nr_val_batches, batch_size, np.asscalar(loss), threshold, dice, cross_entropy, (time.time() - start_time)/60))
                 val_loss.append(loss)
                 val_dices.append(dice)
@@ -242,13 +242,13 @@ class Trainer:
         Function to train network on a batch
         Returns the generated heatmaps to use for evaluation
     '''
-    def train_batch(self, network, X_tra, Y_tra):
+    def train_batch(self, network, X_tra, Y_tra, weight_balance):
 
 
         #weights_map = Y_tra
         weights_map = np.ndarray(Y_tra.shape)
         weights_map.fill(1)
-        weights_map[np.where(Y_tra == 1)] = 4
+        weights_map[np.where(Y_tra == 1)] = weight_balance
          # Lesion pixels are weigthed 100 times more than non-lesion pixels
 
 
@@ -261,11 +261,11 @@ class Trainer:
         Function to train network on a batch
         Returns the generated heatmaps to use for evaluation
     '''
-    def validate_batch(self, network, X_val, Y_val):
+    def validate_batch(self, network, X_val, Y_val, weight_balance):
 
-        weights_map = Y_val + 0.1 # Lesion pixels are weigthed 100 times more than non-lesion pixels
-        #weights_map = np.ndarray(Y_tra.shape)
-        #weights_map.fill(1)
+        weights_map = np.ndarray(Y_val.shape)
+        weights_map.fill(1)
+        weights_map[np.where(Y_val==1)] = weight_balance # Liver pixels are weigthed 100 times more than non-lesion pixels
 
         loss, l2_loss, accuracy, target_prediction, prediction = \
             network.val_fn(X_val.astype(np.float32), Y_val.astype(np.int32), weights_map.astype(np.float32))
