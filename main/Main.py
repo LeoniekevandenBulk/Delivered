@@ -59,11 +59,11 @@ out_size = output_size_for_input\
 img_center = [256, 256]
 
 # Training
-learning_rate = 0.1
+learning_rate = 0.01
 nr_epochs = 10 # 10
 nr_train_batches = 10 # 10
 nr_val_batches = 2 # 2
-batch_size = 5
+batch_size = 2
 
 max_rotation = 10
 liver_aug_params = [0.1,0.0,0.9]
@@ -122,7 +122,7 @@ trainer = Trainer(SURFsara)
 
 # Loop-booleans to allow specific training
 train_liver = True
-train_lesion = True
+train_lesion = False
 
 if train_liver:
     # Load or train liver segmentation network

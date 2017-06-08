@@ -244,9 +244,13 @@ class Trainer:
     '''
     def train_batch(self, network, X_tra, Y_tra):
 
-        weights_map = Y_tra + 0.1 # Lesion pixels are weigthed 100 times more than non-lesion pixels
-        #weights_map = np.ndarray(Y_tra.shape)
-        #weights_map.fill(1)
+
+        #weights_map = Y_tra
+        weights_map = np.ndarray(Y_tra.shape)
+        weights_map.fill(1)
+        weights_map[np.where(Y_tra == 1)] = 4
+         # Lesion pixels are weigthed 100 times more than non-lesion pixels
+
 
         loss, l2_loss, accuracy, target_prediction, prediction = \
             network.train_fn(X_tra.astype(np.float32), Y_tra.astype(np.int32), weights_map.astype(np.float32))
