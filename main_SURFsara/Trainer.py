@@ -29,9 +29,9 @@ class Trainer:
     '''
         Constructor to catch SURFsara-dependent imports
     '''
-    def __init__(self, SURFsara, test_without_train_fn):
+    def __init__(self, SURFsara):
         self.SURFsara = SURFsara
-        self.test_without_train_fn = test_without_train_fn
+
 
 
     '''
@@ -76,8 +76,9 @@ class Trainer:
                         train_batch_dir, inputs, targets, weights,
                         target_class, tra_list, val_list,
                         aug_params, learning_rate,
-                        nr_epochs, nr_train_batches, nr_val_batches, batch_size
-,                       mask_network = None, threshold = 0):
+                        nr_epochs, nr_train_batches, nr_val_batches, batch_size,
+                        read_slices, slice_files,
+                        mask_network = None, threshold = 0):
         
         # Initialize the network        
         network = UNetClass(inputs, 
@@ -96,7 +97,8 @@ class Trainer:
 
         # Define batch generator
         batchGenerator = BatchGenerator(mask_network, threshold, tra_list, val_list, train_batch_dir, target_class,
-                                        group_percentages=(0.5, 0.5), read_slices=True, nr_slices_per_volume=100)
+                                        read_slices, slice_files,
+                                        group_percentages=(0.5, 0.5), nr_slices_per_volume=100)
 
         # Define data augmenter
         augmenter = BatchAugmenter()
@@ -145,14 +147,10 @@ class Trainer:
                 X_tra, Y_tra = batchGenerator.pad_and_crop(X_tra, Y_tra, patch_size, out_size, img_center)
                 #print ('pad & crop X min {:.2f} max {:.2f}, Y min {:.2f} max {:.2f}'.format(
                 #      np.min(X_tra), np.max(X_tra), np.min(Y_tra), np.max(Y_tra)))
+
                 #Train and return result for evaluation (reshape to out_size)
-                if self.test_without_train_fn:
-                    prediction = Y_tra
-                    loss = np.array(0)
-                    accuracy = 1
-                else:
-                    prediction, loss, accuracy = self.train_batch(network, X_tra, Y_tra)
-                    prediction = prediction.reshape(batch_size, 1, out_size[0], out_size[1], 2)[:,:,:,:,1]
+                prediction, loss, accuracy = self.train_batch(network, X_tra, Y_tra)
+                prediction = prediction.reshape(batch_size, 1, out_size[0], out_size[1], 2)[:,:,:,:,1]
 
                 # Get Evaluation report
                 if batch%100 == 0:
@@ -189,13 +187,8 @@ class Trainer:
                 X_val, Y_val = batchGenerator.pad_and_crop(X_val, Y_val, patch_size, out_size, img_center)
 
                 # Get prediction on batch
-                if self.test_without_train_fn:
-                    prediction = Y_val
-                    loss = 0
-                    accuracy = 1
-                else:
-                    prediction, loss, accuracy = self.validate_batch(network, X_val, Y_val)
-                    prediction = prediction.reshape(batch_size, 1, out_size[0], out_size[1], 2)[:, :, :, :, 1]
+                prediction, loss, accuracy = self.validate_batch(network, X_val, Y_val)
+                prediction = prediction.reshape(batch_size, 1, out_size[0], out_size[1], 2)[:, :, :, :, 1]
 
 
                 # Get evaluation report

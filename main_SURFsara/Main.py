@@ -26,7 +26,7 @@ Set parameters to suitable values
 '''
 
 # Boolean to catch SURFsara dependent code
-SURFsara = False
+SURFsara = True
 
 # Variables that define which network to load from file (or not)
 liver_segmentation_name = 'liver_network_LiTS'
@@ -35,7 +35,13 @@ load_liver_segmentation = False
 lesion_detection_name = 'lesion_network_LiTS_0.199737_0.13625'
 load_lesion_detection = True
 
-test_without_train_fn = False # test cpu time without train_fn, which will be mostly in loading the volumes
+#read slices from file, names of the files to read slices from
+read_slices = True
+vol_tra_slices_name = '9k_liver_vol_tra_slices.npy' #vol_tra_slices
+seg_tra_slices_name = '9k_liver_seg_tra_slices.npy' #seg_tra_slices
+vol_val_slices_name = '4k_liver_vol_val_slices.npy' #vol_val_slices
+seg_val_slices_name = '4k_liver_seg_val_slices.npy' #seg_val_slices
+slice_files = np.array([vol_tra_slices_name, seg_tra_slices_name, vol_val_slices_name, seg_val_slices_name])
 
 # UNet architecture
 depth = 5
@@ -52,7 +58,7 @@ learning_rate = 0.1
 nr_epochs = 25 # 25
 nr_train_batches = 500 # 500
 nr_val_batches = 100 # 100
-batch_size = 2
+batch_size = 4
 
 max_rotation = 10
 liver_aug_params = [0.1,0.8,0.9]
@@ -70,8 +76,8 @@ weights = T.ftensor4('W')
 Data loading
 '''
 
-#train_batch_dir='../data/Training_Batch'
-train_batch_dir='../../LiTS/data/Training_Batch'
+train_batch_dir='../data/Training_Batch'
+#train_batch_dir='../../LiTS/data/Training_Batch'
 
 vol_batch = sorted(get_file_list(train_batch_dir, 'volume')[0])
 seg_batch = sorted(get_file_list(train_batch_dir, 'segmentation')[0])
@@ -105,9 +111,9 @@ Initiate training/loading of networks
 
 # Create class to train (or load) networks
 
-trainer = Trainer(SURFsara, test_without_train_fn)
+trainer = Trainer(SURFsara)
 
-case = 'lesion'
+case = 'liver'
 
 if case == 'liver':
     # Load or train liver segmentation network
@@ -124,7 +130,8 @@ if case == 'liver':
                 train_batch_dir, inputs, targets, weights,
                 "liver", tra_list, val_list,
                 liver_aug_params, learning_rate,
-                nr_epochs, nr_train_batches, nr_val_batches, batch_size)
+                nr_epochs, nr_train_batches, nr_val_batches, batch_size,
+                read_slices, slice_files)
 elif case == 'lesion':
     # Load or train lesion detection network
     print("Lesion Network...")
@@ -147,6 +154,7 @@ elif case == 'lesion':
                 "lesion", tra_list, val_list,
                 lesion_aug_params, learning_rate,
                 nr_epochs, nr_train_batches, nr_val_batches, batch_size,
+                read_slices, slice_files,
                 mask_network, threshold = liver_threshold)
     show_segmentation_predictions = True
     if show_segmentation_predictions:

@@ -7,22 +7,23 @@ Batch generator
 '''
 
 class BatchGenerator:
-    def __init__(self, mask_network, threshold, tra_list, val_list, train_batch_dir, target_class, group_percentages,
-                 read_slices, nr_slices_per_volume):
+    def __init__(self, mask_network, threshold, tra_list, val_list, train_batch_dir, target_class,
+                read_slices, slice_files,
+                group_percentages, nr_slices_per_volume):
         self.mask_network = mask_network
         self.threshold = threshold
         self.train_batch_dir = train_batch_dir
 
         if read_slices:
             print ('Reading slices...')
-            self.vol_tra_slices = np.load('9k_lesion_gtruth_only_livers_vol_tra_slices.npy') # Why is this required ?!
+            self.vol_tra_slices = np.load(slice_files[0]) # Why is this required ?!
             print ('{} vol_tra_slices min {} max {} '.format(self.vol_tra_slices.shape[0], np.min(self.vol_tra_slices), np.max(self.vol_tra_slices)))
-            self.seg_tra_slices = np.load('9k_lesion_gtruth_only_livers_seg_tra_slices.npy')
+            self.seg_tra_slices = np.load(slice_files[1])
             print('{} seg_tra_slices min {} max {} '.format(self.seg_tra_slices.shape[0],np.min(self.seg_tra_slices), np.max(self.seg_tra_slices)))
             self.n_slices = self.vol_tra_slices.shape[0]
-            self.vol_val_slices = np.load('4k_lesion_gtruth_only_livers_vol_val_slices.npy') # Why is this required ?!
+            self.vol_val_slices = np.load(slice_files[2]) # Why is this required ?!
             print('{} vol_val_slices min {} max {} '.format(self.vol_val_slices.shape[0],np.min(self.vol_val_slices), np.max(self.vol_val_slices)))
-            self.seg_val_slices = np.load('4k_lesion_gtruth_only_livers_seg_val_slices.npy')
+            self.seg_val_slices = np.load(slice_files[3])
             print('{} seg_val_slices min {} max {} '.format(self.seg_val_slices.shape[0],np.min(self.seg_val_slices), np.max(self.seg_val_slices)))
             self.n_val_slices = self.vol_val_slices.shape[0]
             print('Done reading slices.')
@@ -68,7 +69,7 @@ class BatchGenerator:
                     X_mask = np.ones(seg_array.shape)
                     mask = 'ground_truth'
                     if mask == 'liver':
-                        X_mask = mask_network.predict(vol_array[:, :, slice])
+                        X_mask = self.mask_network.predict(vol_array[:, :, slice])
                     elif mask == 'ground_truth':
                         X_mask = (seg_array[:, :, slice]+1)//2 # temporarily use ground truth mask for lesion network
                     vol_array[:, :, slice] = (X_mask > 0.5).astype(np.int32) * vol_array[:, :, slice]
