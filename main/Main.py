@@ -73,14 +73,9 @@ liver_network_name = 'liver_network_LiTS'
 lesion_network_name = 'lesion_network_LiTS'
 
 # Theano tensors
-if SURFsara:
-    inputs = T.dtensor4('X')
-    targets = T.itensor4('Y')
-    weights = T.dtensor4('Z')
-else:
-    inputs = T.ftensor4('X')
-    targets = T.itensor4('Y')
-    weights = T.ftensor4('W')
+inputs = T.ftensor4('X')
+targets = T.itensor4('Y')
+weights = T.ftensor4('W')
 
 
 
