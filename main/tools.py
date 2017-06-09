@@ -99,13 +99,13 @@ def show_preprocessing(batchGenerator, augmenter, aug_params, \
     Y_0 = []
     for i in range(5):
         # Generate batch
-        X_tra, Y_tra= batchGenerator.get_train_batch(batch_size = 1)
+        X_tra, Y_tra, M_tra= batchGenerator.get_train_batch(batch_size = 1)
 
         # Augment data batch
         #X_tra, Y_tra = augmenter.getAugmentation(X_tra, Y_tra, aug_params)
 
         # Pad X and crop Y for UNet, note that array dimensions change here!
-        X_tra, Y_tra = batchGenerator.pad_and_crop(X_tra, Y_tra, patch_size, out_size, img_center)
+        X_tra, Y_tra, M_tra = batchGenerator.pad_and_crop(X_tra, Y_tra, M_tra, patch_size, out_size, img_center)
         X_0.append(X_tra[0, 0, :, :])
         Y_0.append(Y_tra[0, 0, :, :])
         print('Show preprocessing X min {:.2f} max {:.2f}, Y min {:.2f} max {:.2f}'.format(
@@ -135,12 +135,12 @@ def show_segmentation_prediction(trainer, network, threshold, val_list, batch_di
     val_preds = []
     val_labels = []
     for i in range(nr_test_batches):
-        X_val, Y_val = batchGenerator.get_val_batch(batch_size)
+        X_val, Y_val, M_tra = batchGenerator.get_val_batch(batch_size)
 
         # Pad X and crop Y for UNet, note that array dimensions change here!
-        X_val, Y_val = batchGenerator.pad_and_crop(X_val, Y_val, patch_size, out_size, img_center)
+        X_val, Y_val, M_tra = batchGenerator.pad_and_crop(X_val, Y_val, M_tra, patch_size, out_size, img_center)
 
-        prediction, loss, accuracy = trainer.validate_batch(network, X_val, Y_val, weight_balance)
+        prediction, loss, accuracy = trainer.validate_batch(network, X_val, Y_val, M_tra, weight_balance)
         prediction = prediction.reshape(batch_size, 1, out_size[0], out_size[1], 2)[:, :, :, :, 1]
 
         X_0.append(X_val[0,0,:,:])

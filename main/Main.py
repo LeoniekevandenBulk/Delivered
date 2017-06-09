@@ -22,7 +22,6 @@ start_time = time.time()
 # Seed random to make sure validation set is always same
 random.seed(0)
 
-
 '''
 Set parameters to suitable values
 '''
@@ -39,12 +38,21 @@ load_lesion_detection = False
 
 #read slices from file, names of the files to read slices from
 read_slices = True
-vol_tra_slices_name = '9k_liver_vol_tra_slices.npy' #vol_tra_slices
-seg_tra_slices_name = '9k_liver_seg_tra_slices.npy' #seg_tra_slices
-vol_val_slices_name = '4k_liver_vol_val_slices.npy' #vol_val_slices
-seg_val_slices_name = '4k_liver_seg_val_slices.npy' #seg_val_slices
-slice_files = np.array([vol_tra_slices_name, seg_tra_slices_name, vol_val_slices_name, seg_val_slices_name])
-nr_slices_per_volume=100
+vol_tra_slices_name = '5k_lesion_vol_tra_slices.npy' #vol_tra_slices
+seg_tra_slices_name = '5k_lesion_seg_tra_slices.npy' #seg_tra_slices
+msk_tra_slices_name = '5k_lesion_msk_tra_slices.npy' #msk_tra_slices
+vol_val_slices_name = '2k_lesion_vol_val_slices.npy' #vol_val_slices
+seg_val_slices_name = '2k_lesion_seg_val_slices.npy' #seg_val_slices
+msk_val_slices_name = '2k_lesion_msk_val_slices.npy' #msk_val_slices
+slice_files = np.array([vol_tra_slices_name, seg_tra_slices_name, msk_tra_slices_name,
+                        vol_val_slices_name, seg_val_slices_name, msk_val_slices_name])
+nr_slices_per_volume=50
+
+# Plotting
+show_segmentation_predictions = True
+
+# Save network parameters every epoch (normally only saved when validation loss improved)
+save_network_every_epoch = True
 
 # Determine whether to test or not
 run_test = False
@@ -60,7 +68,7 @@ out_size = output_size_for_input\
 img_center = [256, 256]
 
 # Training
-learning_rate = 0.01
+learning_rate = 0.001
 nr_epochs = 10 # 10
 nr_train_batches = 500 # 500
 nr_val_batches = 100 # 100
@@ -114,11 +122,11 @@ Initiate training/loading of networks
 '''
 
 # Create class to train (or load) networks
-trainer = Trainer(SURFsara)
+trainer = Trainer(SURFsara, save_network_every_epoch)
 
 # Loop-booleans to allow specific training
-train_liver = True
-train_lesion = False
+train_liver = False
+train_lesion = True
 
 if train_liver:
     # Load or train liver segmentation network
@@ -139,7 +147,6 @@ if train_liver:
                 liver_aug_params, learning_rate,
                 nr_epochs, nr_train_batches, nr_val_batches, batch_size,
                 read_slices, slice_files, nr_slices_per_volume, weight_balance)
-    show_segmentation_predictions = True
     if show_segmentation_predictions:
         show_segmentation_prediction(trainer, liver_network, liver_threshold, val_list, train_batch_dir,
                                      patch_size, out_size, img_center, "liver", read_slices, slice_files,
@@ -151,6 +158,8 @@ if train_lesion:
     if (load_lesion_detection):
         lesion_network = trainer.readNetwork(lesion_detection_name, patch_size,
                 inputs, targets, weights, depth, branching_factor)
+        lesion_name = lesion_detection_name.split('_')
+        lesion_threshold = float(lesion_name[len(lesion_name)-1])
     else:
 
         # Set relevant variables depending on whether liver network was trained
@@ -161,7 +170,7 @@ if train_lesion:
             mask_network = None
             liver_threshold = 0.5
             mask = 'ground_truth'  # choose 'liver' or 'ground_truth'
-        weight_balance = 10
+        weight_balance = 100
 
         lesion_network, lesion_threshold = trainer.trainNetwork(start_time, lesion_detection_name, mask,
                 patch_size, depth, branching_factor, out_size, img_center,
@@ -171,10 +180,7 @@ if train_lesion:
                 nr_epochs, nr_train_batches, nr_val_batches, batch_size,
                 read_slices, slice_files, nr_slices_per_volume, weight_balance,
                 mask_network, threshold = liver_threshold)
-    show_segmentation_predictions = True
     if show_segmentation_predictions:
-        lesion_name = lesion_detection_name.split('_')
-        lesion_threshold = float(lesion_name[len(lesion_name)-1])
         show_segmentation_prediction(trainer, lesion_network, lesion_threshold, val_list, train_batch_dir,
                                      patch_size, out_size, img_center, "lesion", read_slices, slice_files,
                                      weight_balance, mask, mask_network)
