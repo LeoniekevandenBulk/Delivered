@@ -54,13 +54,21 @@ class BatchGenerator:
         i_slice = 0
         for i, i_vol in enumerate(vol_list):
             print("get {} slices from {}-th volume #{}".format(nr_slices_per_volume, i, i_vol))
+
+            # Reading in of the volume data (per volume)
             vol = self.train_batch_dir+"/volume-{0}.nii".format(i_vol)
             vol_proxy = nib.load(vol)
             vol_array = vol_proxy.get_data()
+
+            # Reading corresponding labels (per volume)
             seg = self.train_batch_dir+"/segmentation-{0}.nii".format(i_vol)
             seg_proxy = nib.load(seg)
             seg_array = seg_proxy.get_data()
             name = vol.split('-')[1].split('.')[0]
+
+            # Apply normalization on the whole volume
+            vol_array = np.clip(vol_array, -200, 300)
+            vol_array = (vol_array - vol_array.mean()) / vol_array.std()
 
             # re-label seg_array according to group_labels
             seg_label = self.group_label(seg_array, target_class)
@@ -71,7 +79,7 @@ class BatchGenerator:
                 #slice = np.int(np.random.random() * vol_array.shape[2])
 
                 # If lesion netwerk, then apply mask
-                X_mask = np.zeros(seg_array.shape)
+                X_mask = np.zeros((seg_array.shape[0],seg_array.shape[1]))
                 if target_class == 'lesion':
                     mask = 'ground_truth'
                     if mask == 'liver_network':
@@ -86,8 +94,8 @@ class BatchGenerator:
                 i_slice += 1
 
         # Clip, then normalize to [0 1]
-        vol_slices = np.clip(vol_slices, -200, 300)
-        vol_slices = (vol_slices + 200) / 500
+        #vol_slices = np.clip(vol_slices, -200, 300)
+        #vol_slices = (vol_slices + 200) / 500
 
         # Per slice apply zero mean std 1 equalization. CAUSES NaN values in vol_slices !!
         #vol_slices = np.clip((vol_slices - np.mean(vol_slices,axis=0)) / np.std(vol_slices,axis=0), -3, 3)

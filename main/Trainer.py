@@ -147,6 +147,9 @@ class Trainer:
                 # Generate batch
                 X_tra, Y_tra, M_tra = batchGenerator.get_train_batch(batch_size)
 
+                # Augment data batch
+                X_tra, Y_tra = augmenter.getAugmentation(X_tra, Y_tra, aug_params)
+                
                 # Pad X and crop Y for UNet, note that array dimensions change here!
                 X_tra, Y_tra, M_tra = batchGenerator.pad_and_crop(X_tra, Y_tra, M_tra, patch_size, out_size, img_center)
 
@@ -184,9 +187,6 @@ class Trainer:
         
                 # Generate batch
                 X_val, Y_val, M_val = batchGenerator.get_val_batch(batch_size)
-
-                # Clip, then apply zero mean std 1 normalization
-                X_val = np.clip((X_val - X_val.mean()) / X_val.std(),-3,3)
 
                 # Pad X and crop Y for UNet, note that array dimensions change here!
                 X_val, Y_val, M_val = batchGenerator.pad_and_crop(X_val, Y_val, M_val, patch_size, out_size, img_center)
