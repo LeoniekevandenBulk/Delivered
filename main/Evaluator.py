@@ -1,6 +1,10 @@
 from medpy import metric
 from sklearn.metrics import log_loss
 
+'''
+Evaluator
+'''
+
 # Class to evaluate Unet output on validation set with ground truth
 class Evaluator:
 

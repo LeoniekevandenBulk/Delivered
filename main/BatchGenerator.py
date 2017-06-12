@@ -1,53 +1,62 @@
 import numpy as np
 import random
 import nibabel as nib
+from skimage.measure import label
+from scipy.ndimage.morphology import binary_closing
 
 '''
 Batch generator
 '''
 
 class BatchGenerator:
-    def __init__(self, mask_network, threshold, tra_list, val_list, train_batch_dir, target_class,
-                read_slices, slice_files, nr_slices_per_volume, group_percentages):
+    def __init__(self, tra_list, val_list, mask_network, mask_name, mask_threshold, train_batch_dir, target_class,
+                read_slices, slice_files, nr_slices_per_volume, patch_size, out_size, img_center, group_percentages):
         self.mask_network = mask_network
-        self.threshold = threshold
+        self.mask_name = mask_name
+        self.mask_threshold = mask_threshold
         self.train_batch_dir = train_batch_dir
+        self.patch_size = patch_size
+        self.out_size = out_size
+        self.img_center = img_center
 
+        # If slices are already saved to a np array, read them from those fles (train, val and masks)
         if read_slices:
             print ('Reading slices...')
-            self.vol_tra_slices = np.load(slice_files[0]) # Why is this required ?!
+            self.vol_tra_slices = np.load(slice_files[0])
             print ('{} vol_tra_slices min {} max {} '.format(self.vol_tra_slices.shape[0], np.min(self.vol_tra_slices), np.max(self.vol_tra_slices)))
             self.seg_tra_slices = np.load(slice_files[1])
             print('{} seg_tra_slices min {} max {} '.format(self.seg_tra_slices.shape[0],np.min(self.seg_tra_slices), np.max(self.seg_tra_slices)))
             self.msk_tra_slices = np.load(slice_files[2])
-            print('{} msk_tra_slices min {} max {} '.format(self.seg_tra_slices.shape[0], np.min(self.seg_tra_slices), np.max(self.seg_tra_slices)))
+            print('{} msk_tra_slices min {} max {} '.format(self.msk_tra_slices.shape[0], np.min(self.msk_tra_slices), np.max(self.msk_tra_slices)))
             self.n_slices = self.vol_tra_slices.shape[0]
-            self.vol_val_slices = np.load(slice_files[3]) # Why is this required ?!
+            self.vol_val_slices = np.load(slice_files[3])
             print('{} vol_val_slices min {} max {} '.format(self.vol_val_slices.shape[0],np.min(self.vol_val_slices), np.max(self.vol_val_slices)))
             self.seg_val_slices = np.load(slice_files[4])
             print('{} seg_val_slices min {} max {} '.format(self.seg_val_slices.shape[0],np.min(self.seg_val_slices), np.max(self.seg_val_slices)))
-            self.seg_val_slices = np.load(slice_files[4])
-            print('{} msk_val_slices min {} max {} '.format(self.seg_val_slices.shape[0], np.min(self.seg_val_slices), np.max(self.seg_val_slices)))
+            self.msk_val_slices = np.load(slice_files[5])
+            print('{} msk_val_slices min {} max {} '.format(self.msk_val_slices.shape[0], np.min(self.msk_val_slices), np.max(self.msk_val_slices)))
             self.n_val_slices = self.vol_val_slices.shape[0]
             print('Done reading slices.')
+            
+        # Else if slices are to be converted to np arrays, pick 'nr_slices_per_volume' amount of slices per volume for both train, val and masks
         else:
             print('Collecting slices...')
             self.n_tra_slices = nr_slices_per_volume * len(tra_list)
             self.vol_tra_slices, self.seg_tra_slices, self.msk_tra_slices = self.collect_training_slices(tra_list, self.n_tra_slices,
-                                                        nr_slices_per_volume, target_class, group_percentages)
+                                                        nr_slices_per_volume, target_class, group_percentages, train=True)
             np.save('vol_tra_slices', self.vol_tra_slices)
             np.save('seg_tra_slices', self.seg_tra_slices)
             np.save('msk_tra_slices', self.msk_tra_slices)
             self.n_val_slices = nr_slices_per_volume * len(val_list)
             self.vol_val_slices, self.seg_val_slices, self.msk_val_slices = self.collect_training_slices(val_list, self.n_val_slices,
-                                                        nr_slices_per_volume, target_class, group_percentages)
+                                                        nr_slices_per_volume, target_class, group_percentages, train=False)
             np.save('vol_val_slices', self.vol_val_slices)
             np.save('seg_val_slices', self.seg_val_slices)
             np.save('msk_val_slices', self.msk_val_slices)
             print('Done collecting slices.')
 
-
-    def collect_training_slices(self, vol_list, n_slices, nr_slices_per_volume, target_class, group_percentages):
+    # Load nifti files with volumes and segmentations, plus make corresponding masks, and save to np arrays
+    def collect_training_slices(self, vol_list, n_slices, nr_slices_per_volume, target_class, group_percentages, train=True):
         vol_slices = np.zeros((n_slices, 512, 512))
         seg_slices = np.zeros((n_slices, 512, 512))
         msk_slices = np.zeros((n_slices, 512, 512))
@@ -71,37 +80,174 @@ class BatchGenerator:
             vol_array = (vol_array - vol_array.mean()) / vol_array.std()
 
             # re-label seg_array according to group_labels
-            seg_label = self.group_label(seg_array, target_class)
+            seg_label,lbl_max_0_idx,lbl_max_1_idx  = self.group_label(seg_array, target_class)
 
+            # Make perumations of length of slices to prevent double visiting of slices
+            rand_all = np.random.permutation(seg_array.shape[2])
+            rand_0 = np.random.permutation(lbl_max_0_idx.shape[0])
+            rand_1 = np.random.permutation(lbl_max_1_idx.shape[0])
             for s in range(nr_slices_per_volume):
-                label = 1.0 * (np.random.random() > group_percentages[0])
-                slice = self.select_slice(label)
-                #slice = np.int(np.random.random() * vol_array.shape[2])
-
+                if(train == True):
+                    label = 1.0 * (np.random.random() > group_percentages[0])
+                    if ((label == 0 or len(rand_1)==0) and not(len(rand_0)==0)):
+                        slice_nr = rand_0[0]
+                        rand_0 = np.delete(rand_0, [0], None)
+                    else:
+                        slice_nr = rand_1[0]
+                        rand_1 = np.delete(rand_1, [0], None)
+                else:
+                    slice_nr = rand_all[s]
+                
                 # If lesion netwerk, then apply mask
                 X_mask = np.zeros((seg_array.shape[0],seg_array.shape[1]))
                 if target_class == 'lesion':
-                    mask = 'ground_truth'
-                    if mask == 'liver_network':
-                        X_mask = self.mask_network.predict(vol_array[:, :, slice])
-                    elif mask == 'ground_truth':
-                        X_mask = (seg_array[:, :, slice]+1)//2 # temporarily use ground truth mask for lesion network
-                    #vol_array[:, :, slice] = (X_mask > 0.5).astype(np.int32) * vol_array[:, :, slice]
+                    
+                    if self.mask_name == 'liver_network':
+                        #Reshape for correct input size for Unet
+                        X_mask = vol_array[:, :, slice_nr].reshape(1,1,vol_array.shape[0],vol_array.shape[1])
+                        
+                        # Predict liver mask
+                        X_mask = self.mask_network.predict_fn((X_mask).astype(np.float32))
+                        
+                        # Reshape image back to 2 dimensions
+                        X_mask = X_mask[0].reshape(1, 1, self.out_size[0], self.out_size[1], 2)[:, :, :, :, 1]
+                        
+                        # Threshold to binary output
+                        X_mask = (X_mask > self.mask_threshold).astype(np.int32)
 
-                vol_slices[i_slice, :, :] = vol_array[:, :, slice]
-                seg_slices[i_slice, :, :] = seg_label[:, :, slice]
+                        # Find the biggest connected component in the liver segmentation
+                        X_mask[0, 0, :, :] = self.get_biggest_component(X_mask[0,0,:,:])
+                        
+                        # Pad back to original image size
+                        #X_mask = self.pad(X_mask, (512,512))
+                        X_mask = self.pad(X_mask, (512,512), self.img_center)
+                        X_mask = np.squeeze(X_mask)
+                        
+                    elif self.mask_name == 'ground_truth':
+                        X_mask = (seg_array[:, :, slice_nr]+1)//2 # temporarily use ground truth mask for lesion network
+
+                vol_slices[i_slice, :, :] = vol_array[:, :, slice_nr]
+                seg_slices[i_slice, :, :] = seg_label[:, :, slice_nr]
                 msk_slices[i_slice, :, :] = X_mask
                 i_slice += 1
 
-        # Clip, then normalize to [0 1]
-        #vol_slices = np.clip(vol_slices, -200, 300)
-        #vol_slices = (vol_slices + 200) / 500
-
-        # Per slice apply zero mean std 1 equalization. CAUSES NaN values in vol_slices !!
-        #vol_slices = np.clip((vol_slices - np.mean(vol_slices,axis=0)) / np.std(vol_slices,axis=0), -3, 3)
-
         return vol_slices, seg_slices, msk_slices
 
+    # Generator function to get batches
+    def get_batch(self, batch_size, train=True):
+
+        if (train):
+            n_slices = self.vol_tra_slices.shape[0]
+        else:
+            n_slices = self.vol_val_slices.shape[0]
+
+        perm = np.random.permutation(n_slices)
+
+        X_batch = np.zeros((batch_size, 1, 512, 512))
+        Y_batch = np.zeros((batch_size, 1, 512, 512))
+        M_batch = np.zeros((batch_size, 1, 512, 512))
+
+        slice_nr = 0
+        while (slice_nr + batch_size < n_slices):
+            
+            for i in range(batch_size):
+                if (train):
+                    X_batch[i, 0, :, :] = self.vol_tra_slices[perm[slice_nr], :, :]
+                    Y_batch[i, 0, :, :] = self.seg_tra_slices[perm[slice_nr], :, :]
+                    M_batch[i, 0, :, :] = self.msk_tra_slices[perm[slice_nr], :, :]
+                else:
+                    X_batch[i, 0, :, :] = self.vol_val_slices[perm[slice_nr], :, :]
+                    Y_batch[i, 0, :, :] = self.seg_val_slices[perm[slice_nr], :, :]
+                    M_batch[i, 0, :, :] = self.msk_val_slices[perm[slice_nr], :, :]
+                    
+                slice_nr += 1
+                
+            yield (X_batch, Y_batch, M_batch)
+        print("No more batches, epoch is done!")
+
+    # Determine which slices contain the positive class (liver or lesion) and which don't
+    def group_label(self, seg_array, group_labels):
+        # re-label seg_array according to group_labels
+        if group_labels == "liver": #(0, (1,2))
+            lbl_max = np.max(np.max(seg_array, axis=1), axis=0)  # maximum label per slice
+            lbl_max_0_idx = np.where(lbl_max == 0)[0]  # slice indices of slices with maximum label 0
+            lbl_max_1_idx = np.where(lbl_max > 0)[0]  # slice indices of slices with maximum label 1
+            seg_group_labels = (seg_array.astype(
+                np.int32) + 1) // 2  # seg_group_labels = [x-1 if x > 1 else x for x in np.nditer(seg_array)]
+        elif group_labels == "lesion": #((0,1),2)
+            lbl_max = np.max(np.max(seg_array, axis=1), axis=0)  # maximum label per slice
+            lbl_max_0_idx = np.where(lbl_max == 1)[0]  # slice indices of slices with maximum label 0
+            lbl_max_1_idx = np.where(lbl_max == 2)[0]  # slice indices of slices with maximum label 1
+            seg_group_labels = seg_array.astype(np.int32) // 2  # [x-1 if x > 0 else x for x in np.nditer(seg_array)]
+        else:
+            lbl_max = np.max(np.max(seg_array, axis=1), axis=0)  # maximum label per slice
+            lbl_max_0_idx = np.where(lbl_max < 2)[0]  # slice indices of slices with maximum label 0
+            lbl_max_1_idx = np.where(lbl_max == 2)[0]  # slice indices of slices with maximum label 1
+            seg_group_labels = seg_array.astype(np.int32)
+
+        return seg_group_labels, lbl_max_0_idx, lbl_max_1_idx 
+
+    # Function to pad an image
+    def pad(self, batch, target_size, pad_value = 0):
+
+        # Create array to place image in
+        padded = np.ones((batch.shape[0], batch.shape[1], target_size[0], target_size[1])) * pad_value
+	
+        # Determine start (x, y) of image in padded array
+        offsetX = int((target_size[0] - batch.shape[2])/2)
+        offsetY = int((target_size[1] - batch.shape[3])/2)
+	
+        # Place image at target location
+        padded[:, :, offsetX:target_size[0]-offsetX, offsetY:target_size[1]-offsetY] = batch[:, :, :, :]
+	
+        return padded
+
+    # Function to crop an image	
+    def crop(self, batch, target_size):
+    
+        # Create array to place image in
+        cropped = np.zeros((batch.shape[0], batch.shape[1], target_size[0], target_size[1]))
+	
+	# Determine start (x, y) of image in padded array
+        offsetX = int((batch.shape[2] - target_size[0])/2)
+        offsetY = int((batch.shape[3] - target_size[1])/2)
+	
+	# Crop image
+        cropped[:, :, :, :] = batch[:, :, offsetX:batch.shape[2]-offsetX, offsetY:batch.shape[3]-offsetY]
+
+        # Print how many liver/lesion is outside of crop
+        if((np.sum(batch) - np.sum(cropped)) > 10):
+            print("Warning: sum labels outside output crop is {}".format(np.sum(batch) - np.sum(cropped)))
+
+        return cropped
+
+    # Keep the biggest connected component and apply binary closing
+    def get_biggest_component(self, pred):
+
+        labelled = label(pred, connectivity=2)
+        largest_connected_val = 0
+        largest_connected_mean = 0
+
+        for val in range(1, labelled.max() +1):
+             # We can use mean since divisor is always image area and labelled value is always 1
+             connected_mean = (labelled == val).astype(np.int32).mean()
+
+             # Make sure great component is selected
+             if (connected_mean > largest_connected_mean):
+                 largest_connected_val = val
+                 largest_connected_mean = connected_mean
+
+        # Select only largest component from image
+        pred[labelled != largest_connected_val] = 0
+
+        # Perform binary closing
+        pred = binary_closing(pred).astype(int)
+
+        return pred
+
+'''
+
+    # Get a batch of training imgs (with corresponding labels and masks)
     def get_train_batch(self, batch_size):
 
         img_x, img_y = (512, 512)
@@ -127,6 +273,7 @@ class BatchGenerator:
 
         return X_batch, Y_batch, M_batch # temporarily pass on ground truth mask for lesion network
 
+    # Get a batch of validation imgs (with corresponding labels and masks)
     def get_val_batch(self, batch_size):
 
         img_x, img_y = (512, 512)
@@ -152,84 +299,4 @@ class BatchGenerator:
 
         return X_batch, Y_batch, M_batch # temporarily pass on ground truth mask for lesion network
 
-    def group_label(self, seg_array, group_labels):
-        # re-label seg_array according to group_labels
-        if group_labels == "liver": #(0, (1,2))
-            lbl_max = np.max(np.max(seg_array, axis=1), axis=0)  # maximum label per slice
-            self.lbl_max_0_idx = np.where(lbl_max == 0)[0]  # slice indices of slices with maximum label 0
-            self.lbl_max_1_idx = np.where(lbl_max > 0)[0]  # slice indices of slices with maximum label 1
-            seg_group_labels = (seg_array.astype(
-                np.int32) + 1) // 2  # seg_group_labels = [x-1 if x > 1 else x for x in np.nditer(seg_array)]
-        elif group_labels == "lesion": #((0,1),2)
-            lbl_max = np.max(np.max(seg_array, axis=1), axis=0)  # maximum label per slice
-            self.lbl_max_0_idx = np.where(lbl_max == 1)[0]  # slice indices of slices with maximum label 0
-            self.lbl_max_1_idx = np.where(lbl_max == 2)[0]  # slice indices of slices with maximum label 1
-            seg_group_labels = seg_array.astype(np.int32) // 2  # [x-1 if x > 0 else x for x in np.nditer(seg_array)]
-        else:
-            lbl_max = np.max(np.max(seg_array, axis=1), axis=0)  # maximum label per slice
-            self.lbl_max_0_idx = np.where(lbl_max < 2)[0]  # slice indices of slices with maximum label 0
-            self.lbl_max_1_idx = np.where(lbl_max == 2)[0]  # slice indices of slices with maximum label 1
-            seg_group_labels = seg_array.astype(np.int32)
-
-        return seg_group_labels
-
-    def select_slice(self, label):
-
-        #TODO take exactly <group_percentage> slices from each group (not randomly)
-        if label == 0 or len(self.lbl_max_1_idx) == 0:
-            slice = np.random.choice(self.lbl_max_0_idx,1)
-        else:
-            slice = np.random.choice(self.lbl_max_1_idx,1)
-
-        return slice[0]
-
-    def pad_and_crop(self, Ximg, Yimg, Mimg, patch_size, out_size, img_center):
-
-        # Cropping and padding for UNet
-        img_size = np.asarray((Ximg.shape[2], Ximg.shape[3]))
-        extend = img_size - img_center
-        # pad X
-        patch_array = np.asarray(patch_size)
-        crop_begin = np.clip(img_center - patch_array/2, 0, None) # [0, 0]
-        crop_end = img_size - np.clip(extend - patch_array/2, 0, None)
-        pad_begin = patch_array // 2 - img_center
-        pad_end = pad_begin + (crop_end - crop_begin)
-        X = np.zeros((Ximg.shape[0], Ximg.shape[1], patch_size[0], patch_size[1]))
-        X[:, :, pad_begin[1]:pad_end[1], pad_begin[0]:pad_end[0]] = \
-                Ximg[:, :, crop_begin[1]:crop_end[1], crop_begin[0]:crop_end[0]]
-        # crop Y
-        out_array = np.asarray(out_size)
-        crop_begin = np.clip(img_center - out_array / 2, 0, None)
-        crop_end = img_size - np.clip(extend - out_array/2, 0, None)
-        pad_begin = np.clip(out_array // 2 - img_center, 0, None)
-        pad_end = pad_begin + np.clip(crop_end - crop_begin, 0, None)
-        Y = np.zeros((Yimg.shape[0], Yimg.shape[1], out_size[0], out_size[1]))
-        Y[:, :, pad_begin[1]:pad_end[1], pad_begin[0]:pad_end[0]] = \
-                Yimg[:, :, crop_begin[1]:crop_end[1], crop_begin[0]:crop_end[0]]
-        M = np.zeros((Mimg.shape[0], Mimg.shape[1], out_size[0], out_size[1]))
-        M[:, :, pad_begin[1]:pad_end[1], pad_begin[0]:pad_end[0]] = \
-                Mimg[:, :, crop_begin[1]:crop_end[1], crop_begin[0]:crop_end[0]]
-        sum_label_outside = np.sum(Yimg[:,:,:crop_begin[1],:]) + np.sum(Yimg[:,:,crop_end[1]:,:]) + \
-                               np.sum(Yimg[:,:,:,:crop_begin[0]]) + np.sum(Yimg[:,:,:,crop_end[0]:])
-        if sum_label_outside > 10:
-            print("Warning: sum labels outside output crop is {}".format(sum_label_outside))
-
-        return X, Y, M
-
-    def pad(self, Ximg, patch_size, img_center):
-
-        # Cropping and padding for UNet
-        img_size = np.asarray((Ximg.shape[2], Ximg.shape[3]))
-        extend = img_size - img_center
-
-        # pad X
-        patch_array = np.asarray(patch_size)
-        crop_begin = np.clip(img_center - patch_array / 2, 0, None)  # [0, 0]
-        crop_end = img_size - np.clip(extend - patch_array / 2, 0, None)
-        pad_begin = patch_array // 2 - img_center
-        pad_end = pad_begin + (crop_end - crop_begin)
-        X = np.ndarray((Ximg.shape[0], Ximg.shape[1], patch_size[0], patch_size[1]))
-        X[:, :, pad_begin[1]:pad_end[1], pad_begin[0]:pad_end[0]] = \
-            Ximg[:, :, crop_begin[1]:crop_end[1], crop_begin[0]:crop_end[0]]
-
-        return X
+'''

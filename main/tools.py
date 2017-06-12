@@ -8,9 +8,11 @@ import nibabel as nib
 from BatchGenerator import BatchGenerator
 from BatchAugmenter import BatchAugmenter
 
+'''
+Useful functions to use for plotting and loading
+'''
 
-# function to get a list of file of a given extension, both the absolute path and the filename
-
+# Function to get a list of file of a given extension, both the absolute path and the filename
 def get_file_list(path,ext='',queue=''):
     if ext != '':
         return [os.path.join(path,f) for f in os.listdir(path) if f.startswith(ext)],  \
@@ -18,6 +20,7 @@ def get_file_list(path,ext='',queue=''):
     else:
         return [os.path.join(path,f) for f in os.listdir(path)]
 
+# Plot image, label and mask
 def show_image(idx, imgs, msks, lbls):
     img = np.asarray(Image.open(imgs[idx]))
     print
@@ -35,8 +38,8 @@ def show_image(idx, imgs, msks, lbls):
     plt.title('Manual annotation {}'.format(idx + 1))
     plt.show()
 
+# Function to display row of image slices
 def show_slices(vol_slices, seg_slices):
-    """ Function to display row of image slices """
     nslice = len(vol_slices)
     fig, axes = plt.subplots(2, nslice)
     for i, slice in enumerate(vol_slices):
@@ -44,8 +47,8 @@ def show_slices(vol_slices, seg_slices):
     for i, slice in enumerate(seg_slices):
         axes[1, i].imshow(slice.T, cmap="gray", origin="lower", clim=(0, 2))
 
+# Function to display row of image slices
 def show_slices_x4(vol_slices, seg_slices, label_slices, pred_slices):
-    """ Function to display row of image slices """
     nslice = len(vol_slices)
     fig, axes = plt.subplots(4, nslice)
     for i, slice in enumerate(vol_slices):
@@ -57,7 +60,7 @@ def show_slices_x4(vol_slices, seg_slices, label_slices, pred_slices):
     for i, slice in enumerate(pred_slices):
         axes[3, i].imshow(slice.T, cmap="gray", origin="lower", clim=(0, 2))
 
-
+# Determines the output size of Unet given the input and depth
 def output_size_for_input(in_size, depth):
     in_size = np.array(in_size)
     in_size -= 4
@@ -69,7 +72,7 @@ def output_size_for_input(in_size, depth):
         in_size -= 4
     return in_size
 
-
+# Plot the center slices of a volume in every plane
 def show_volumes(vol_batch, seg_batch):
     for i, (vol, seg) in enumerate(zip(vol_batch, seg_batch)):
         vol_proxy = nib.load(vol)
@@ -92,24 +95,32 @@ def show_volumes(vol_batch, seg_batch):
         #plt.pause(0.5)
         plt.savefig('volume_'+i+'.png')
 
+# Plot the effect of padding and cropping on images and labels
 def show_preprocessing(batchGenerator, augmenter, aug_params, \
                        patch_size, out_size, img_center, target_class):
 
     X_0 = []
     Y_0 = []
-    for i in range(5):
+    for i,batch in enumerate(batchGenerator.get_batch(batch_size = 1, train=True)):
         # Generate batch
-        X_tra, Y_tra, M_tra= batchGenerator.get_train_batch(batch_size = 1)
+        X_tra, Y_tra, M_tra = batch
 
         # Augment data batch
-        #X_tra, Y_tra = augmenter.getAugmentation(X_tra, Y_tra, aug_params)
+        #X_tra, Y_tra, M_tra = augmenter.getAugmentation(X_tra, Y_tra, M_tra, aug_params)
 
         # Pad X and crop Y for UNet, note that array dimensions change here!
-        X_tra, Y_tra, M_tra = batchGenerator.pad_and_crop(X_tra, Y_tra, M_tra, patch_size, out_size, img_center)
+        X_tra = batchGenerator.pad(X_tra, patch_size, pad_value=np.min(X_tra))
+        Y_tra = batchGenerator.crop(Y_tra, out_size)
+        M_tra = batchGenerator.crop(M_tra, out_size)
+        
         X_0.append(X_tra[0, 0, :, :])
         Y_0.append(Y_tra[0, 0, :, :])
         print('Show preprocessing X min {:.2f} max {:.2f}, Y min {:.2f} max {:.2f}'.format(
             np.min(X_tra), np.max(X_tra), np.min(Y_tra), np.max(Y_tra)))
+
+        # Because get_batch can generate a lot more batches
+        if(i>=4):
+            break
 
     show_slices(X_0, Y_0)
     plt.suptitle("Preprocessed slices", size=40)
@@ -117,13 +128,12 @@ def show_preprocessing(batchGenerator, augmenter, aug_params, \
     #plt.pause(0.5)
     plt.savefig('Preprocess.png')
 
+# Plot segmentation results
 def show_segmentation_prediction(trainer, network, threshold, val_list, batch_dir,
                                  patch_size, out_size, img_center, target_class,
                                  read_slices, slice_files, weight_balance, mask, mask_network):
 
-
     nr_test_batches = 5 # batch_size per test
-    batch_size = 1
 
     # Define batch generator
     batchGenerator = BatchGenerator(mask_network, threshold, val_list, val_list, batch_dir, target_class,
@@ -134,20 +144,30 @@ def show_segmentation_prediction(trainer, network, threshold, val_list, batch_di
     target_preds = []
     val_preds = []
     val_labels = []
-    for i in range(nr_test_batches):
-        X_val, Y_val, M_tra = batchGenerator.get_val_batch(batch_size)
+    for i,batch in enumerate(batchGenerator.get_batch(batch_size = 1, train=True)):
+        X_val, Y_val, M_val = batch
 
         # Pad X and crop Y for UNet, note that array dimensions change here!
-        X_val, Y_val, M_tra = batchGenerator.pad_and_crop(X_val, Y_val, M_tra, patch_size, out_size, img_center)
+        X_val = batchGenerator.pad(X_val, patch_size, pad_value=np.min(X_tra))
+        Y_val = batchGenerator.crop(Y_val, out_size)
+        M_val = batchGenerator.crop(M_val, out_size)
 
-        prediction, loss, accuracy = trainer.validate_batch(network, X_val, Y_val, M_tra, weight_balance)
+        prediction, loss, accuracy = trainer.validate_batch(network, X_val, Y_val, M_val, weight_balance)
         prediction = prediction.reshape(batch_size, 1, out_size[0], out_size[1], 2)[:, :, :, :, 1]
+
+        pred_binary = (prediction[0,0,:,:] > threshold).astype(np.int32)
+        # Find the biggest connected component in the liver segmentation
+        if(target_class == 'liver'):
+            pred_binary = batchGenerator.get_biggest_component(pred_binary)
 
         X_0.append(X_val[0,0,:,:])
         Y_0.append(Y_val[0,0,:,:])
         val_preds.append(prediction[0,0,:,:])
-        val_labels.append((prediction[0,0,:,:] > threshold).astype(np.int32))
-        a=3
+        val_labels.append(pred_binary)
+
+        if(i>=nr_test_batches):
+            break;        
+        
     show_slices_x4(X_0, Y_0, val_labels, val_preds)
     plt.suptitle("Segmentation results for validation images ", size=40)
     plt.savefig('Validation_segmentation.png')
