@@ -83,9 +83,11 @@ class BatchGenerator:
             seg_label,lbl_max_0_idx,lbl_max_1_idx  = self.group_label(seg_array, target_class)
 
             # Make perumations of length of slices to prevent double visiting of slices
-            rand_all = np.random.permutation(seg_array.shape[2])
-            rand_0 = np.random.permutation(lbl_max_0_idx.shape[0])
-            rand_1 = np.random.permutation(lbl_max_1_idx.shape[0])
+            rand_all = np.random.permutation(seg_label.shape[2])
+            rand_0 = lbl_max_0_idx
+            np.random.shuffle(rand_0)
+            rand_1 = lbl_max_1_idx
+            np.random.shuffle(rand_1)
             for s in range(nr_slices_per_volume):
                 if(train == True):
                     label = 1.0 * (np.random.random() > group_percentages[0])
