@@ -178,7 +178,7 @@ class BatchGenerator:
                 np.int32) + 1) // 2  # seg_group_labels = [x-1 if x > 1 else x for x in np.nditer(seg_array)]
         elif group_labels == "lesion": #((0,1),2)
             lbl_max = np.max(np.max(seg_array, axis=1), axis=0)  # maximum label per slice
-            lbl_max_0_idx = np.where(lbl_max == 1)[0]  # slice indices of slices with maximum label 0
+            lbl_max_0_idx = np.where(lbl_max < 2)[0]   # slice indices of slices with maximum label 0
             lbl_max_1_idx = np.where(lbl_max == 2)[0]  # slice indices of slices with maximum label 1
             seg_group_labels = seg_array.astype(np.int32) // 2  # [x-1 if x > 0 else x for x in np.nditer(seg_array)]
         else:
