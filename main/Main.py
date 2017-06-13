@@ -134,17 +134,17 @@ if train_liver:
         liver_name = liver_segmentation_name.split('_')
         liver_threshold = float(liver_name[-1])
     else:
-        mask = 'none'
+        mask_name = 'none'
         weight_balance = 6
         liver_network, liver_threshold = trainer.trainNetwork(start_time, liver_segmentation_name,
-                mask, patch_size, depth, branching_factor, out_size, img_center,
+                patch_size, depth, branching_factor, out_size, img_center,
                 train_batch_dir, inputs, targets, weights, "liver", tra_list, val_list,
                 liver_aug_params, learning_rate, nr_epochs, batch_size, group_percentages, read_slices,
                 slice_files, nr_slices_per_volume, weight_balance)
     if show_segmentation_predictions:
         show_segmentation_prediction(trainer, liver_network, liver_threshold, val_list, train_batch_dir,
                                      patch_size, out_size, img_center, "liver", read_slices, slice_files,
-                                     weight_balance, mask=None, mask_network=None)
+                                     weight_balance, mask_name=None, mask_network=None)
 
 if train_lesion:
     # Load or train lesion detection network
@@ -166,7 +166,7 @@ if train_lesion:
             mask_name = 'ground_truth'  # choose 'liver' or 'ground_truth'
         weight_balance = 10
 
-        lesion_network, lesion_threshold = trainer.trainNetwork(start_time, lesion_detection_name, mask,
+        lesion_network, lesion_threshold = trainer.trainNetwork(start_time, lesion_detection_name,
                 patch_size, depth, branching_factor, out_size, img_center, train_batch_dir, inputs,
                 targets, weights, "lesion", tra_list, val_list, lesion_aug_params, learning_rate,
                 nr_epochs, batch_size, group_percentages, read_slices, slice_files, nr_slices_per_volume,
@@ -174,7 +174,7 @@ if train_lesion:
     if show_segmentation_predictions:
         show_segmentation_prediction(trainer, lesion_network, lesion_threshold, val_list, train_batch_dir,
                                      patch_size, out_size, img_center, "lesion", read_slices, slice_files,
-                                     weight_balance, mask, mask_network)
+                                     weight_balance, mask_name, mask_network)
 
 '''
 Move on to testing and saving results

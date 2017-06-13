@@ -74,7 +74,7 @@ class Trainer:
         Output: - network is a trained network
                 - threshold is the best threshold for the heatmap of the network
     '''
-    def trainNetwork(self, start_time, network_name, mask,
+    def trainNetwork(self, start_time, network_name,
                         patch_size, depth, branching_factor, out_size,
                         img_center, train_batch_dir, inputs, targets,
                         weights, target_class, tra_list, val_list,
