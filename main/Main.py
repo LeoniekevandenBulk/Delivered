@@ -32,6 +32,7 @@ SURFsara = True
 # Loop-booleans to allow specific training
 train_liver = True
 train_lesion = False
+train_lesion_only = False # If put to True also put train_lesion to True!
 
 # Variables that define which network to load from file (or not)
 liver_segmentation_name = 'liver_network_LiTS_0.195079_0.939129878833_0.632622622623'
@@ -76,6 +77,9 @@ learning_rate = 0.0001
 nr_epochs = 7 # 10
 batch_size = 2
 group_percentages = (0.0, 1.0)
+
+weight_balance_liver = 4
+weight_balance_lesion = 10
 
 max_rotation = 10
 liver_aug_params = [0.1,0.0,0.9]
@@ -127,7 +131,6 @@ trainer = Trainer(SURFsara, save_network_every_epoch)
 if train_liver:
     # Load or train liver segmentation network
     print("Liver Network...")
-    weight_balance = 4
     if (load_liver_segmentation):
         liver_network = trainer.readNetwork(liver_segmentation_name, patch_size,
                 inputs, targets, weights, depth, branching_factor)
@@ -140,12 +143,11 @@ if train_liver:
                 patch_size, depth, branching_factor, out_size, img_center,
                 train_batch_dir, inputs, targets, weights, "liver", tra_list, val_list,
                 liver_aug_params, learning_rate, nr_epochs, batch_size, group_percentages, read_slices,
-                slice_files, nr_slices_per_volume, weight_balance)
+                slice_files, nr_slices_per_volume, weight_balance_liver)
     if show_segmentation_predictions:
         show_segmentation_prediction(trainer, liver_network, liver_threshold, val_list, train_batch_dir,
                                      patch_size, out_size, img_center, "liver", read_slices, slice_files, 
-												 nr_slices_per_volume,
-                                     weight_balance, mask_name=None, mask_network=None)
+				     nr_slices_per_volume, weight_balance_liver, mask_name=None, mask_network=None)
 
 if train_lesion:
     # Load or train lesion detection network
@@ -161,22 +163,24 @@ if train_lesion:
         if train_liver:
             mask_network = liver_network
             mask_name = "liver_network"
+        elif train_lesion_only:
+            mask_network = None
+            liver_threshold = 0.5
+            mask_name = None 
         else:
             mask_network = None
             liver_threshold = 0.5
             mask_name = 'ground_truth'  # choose 'liver' or 'ground_truth'
-        weight_balance = 10
 
         lesion_network, lesion_threshold = trainer.trainNetwork(start_time, lesion_detection_name,
                 patch_size, depth, branching_factor, out_size, img_center, train_batch_dir, inputs,
                 targets, weights, "lesion", tra_list, val_list, lesion_aug_params, learning_rate,
                 nr_epochs, batch_size, group_percentages, read_slices, slice_files, nr_slices_per_volume,
-                weight_balance, mask_network, mask_name, mask_threshold = liver_threshold)
+                weight_balance_lesion, mask_network, mask_name, mask_threshold = liver_threshold)
     if show_segmentation_predictions:
         show_segmentation_prediction(trainer, liver_network, liver_threshold, val_list, train_batch_dir,
                                      patch_size, out_size, img_center, "liver", read_slices, slice_files, 
-												 nr_slices_per_volume,
-                                     weight_balance, mask_name=None, mask_network=None)
+				     nr_slices_per_volume, weight_balance_lesion, mask_name=None, mask_network=None)
 
 '''
 Move on to testing and saving results

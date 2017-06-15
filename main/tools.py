@@ -105,6 +105,10 @@ def show_preprocessing(batchGenerator, augmenter, aug_params, \
         # Generate batch
         X_tra, Y_tra, M_tra = batch
 
+        # ROI METHOD WERE WE PUT EVERY PIXEL OUTSIDE OF LIVER TO ZERO
+        if(target_class == 'lesion' and not(mask_name == None)):
+            X_tra[np.where(M_tra == 0)] = np.min(X_tra)
+            
         # Augment data batch
         #X_tra, Y_tra, M_tra = augmenter.getAugmentation(X_tra, Y_tra, M_tra, aug_params)
 
@@ -147,9 +151,13 @@ def show_segmentation_prediction(trainer, network, mask_threshold, val_list, tra
     val_preds = []
     val_labels = []
     batch_size = 1
-    for i,batch in enumerate(batchGenerator.get_batch(batch_size = 1, train=False)):
+    for i,batch in enumerate(batchGenerator.get_batch(batch_size = 1, train=True)):
         X_val, Y_val, M_val = batch
 
+        # ROI METHOD WERE WE PUT EVERY PIXEL OUTSIDE OF LIVER TO ZERO
+        if(target_class == 'lesion' and not(mask_name == None)):
+            X_val[np.where(M_val == 0)] = np.min(X_val)
+            
         # Pad X and crop Y for UNet, note that array dimensions change here!
         X_val = batchGenerator.pad(X_val, patch_size, pad_value=np.min(X_val))
         Y_val = batchGenerator.crop(Y_val, out_size)

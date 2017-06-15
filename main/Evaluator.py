@@ -43,8 +43,8 @@ class Evaluator:
             prediction = (pred >= threshold).astype(int)
         
             # Calculate dice score
-            if target.min() == 0 and target.max() == 0 and prediction.min() == 0 and prediction.max() == 0:
-                dice = 1.0
+            if(target.min() == 0 and target.max() == 0):
+                dice = -1.0
             else:
                 dice = metric.dc(prediction, target)
             

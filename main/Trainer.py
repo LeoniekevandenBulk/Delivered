@@ -135,7 +135,64 @@ class Trainer:
             show_preprocessing(batchGenerator, augmenter, aug_params,
                                patch_size, out_size, img_center, target_class)
 
-         # Begin of training
+
+
+        # Start with validaiton for graph!
+        val_loss= []
+        val_dices= []
+        val_ces= []
+        val_thres = []
+
+        print('Validate before training!')
+        # Validation loop
+        for i,batch in enumerate(batchGenerator.get_batch(batch_size, train=False)):
+        
+            # Assign validation batch
+            X_val, Y_val, M_val = batch
+
+            # ROI METHOD WERE WE PUT EVERY PIXEL OUTSIDE OF LIVER TO ZERO
+            if(target_class == 'lesion' and not(mask_name == None)):
+                X_val[np.where(M_val == 0)] = np.min(X_val)
+
+            # Pad X and crop Y for UNet, note that array dimensions change here!
+            X_val = batchGenerator.pad(X_val, patch_size, pad_value=np.min(X_tra))
+            Y_val = batchGenerator.crop(Y_val, out_size)
+            M_val = batchGenerator.crop(M_val, out_size)
+                
+            # Get prediction on batch
+            prediction, loss, accuracy = self.validate_batch(unet, X_val, Y_val, M_val, weight_balance, target_class)
+            prediction = prediction.reshape(batch_size, 1, out_size[0], out_size[1], 2)[:, :, :, :, 1]
+                
+            # Get evaluation report
+            if i % 100 == 0:
+                print ('batch {}/{}, X min {:.2f} max {:.2f}, Y min {:.2f} max {:.2f}, pred min {:.2f} max {:.2f}'.format(
+                        i, (len(val_list)*nr_slices_per_volume)/batch_size, np.min(X_tra), np.max(X_tra), np.min(Y_val), np.max(Y_val),
+                        np.min(prediction), np.max(prediction)))
+            error_report = evaluator.get_evaluation(Y_val, prediction)
+            dice = error_report[0][1]
+            threshold = error_report[0][2]
+            cross_entropy = error_report[1][1]
+
+            # Report and save performance
+            if i % 100 == 0:
+               print ('batch {}/{}, {} slc, validation loss {:.2f}, threshold {:.2f}, dice {:.2f}, cross entropy {:.2f}, cpu {:.2f} min'.format(
+                   i, (len(val_list)*nr_slices_per_volume)/batch_size, batch_size, np.asscalar(loss), threshold, dice, cross_entropy, (time.time() - start_time)/60))
+            val_loss.append(loss)
+            val_ces.append(cross_entropy)
+            if(not(dice==-1)):
+                val_dices.append(dice)
+                val_thres.append(threshold)
+
+        # Average performance of batches and save
+        tra_loss_lst.append(np.mean(tra_loss))
+        tra_dice_lst.append(np.mean(tra_dices))
+        tra_ce_lst.append(np.mean(tra_ces))
+        val_loss_lst.append(np.mean(val_loss))
+        val_dice_lst.append(np.mean(val_dices))
+        val_ce_lst.append(np.mean(val_ces))
+
+
+        # Begin of training
         for epoch in range(nr_epochs):
             print('Epoch {0}/{1}'.format(epoch + 1,nr_epochs))
             
@@ -154,7 +211,7 @@ class Trainer:
                 #X_tra, Y_tra, M_tra = augmenter.getAugmentation(X_tra, Y_tra, M_tra, aug_params)
 
                 # ROI METHOD WERE WE PUT EVERY PIXEL OUTSIDE OF LIVER TO ZERO
-                if(target_class == 'lesion'):
+                if(target_class == 'lesion' and not(mask_name == None)):
                     X_tra[np.where(M_tra == 0)] = np.min(X_tra)
                 
                 # Pad X and crop Y for UNet, note that array dimensions change here!
@@ -180,8 +237,10 @@ class Trainer:
                     print ('batch {}/{}, {} slc, training loss {:.2f}, dice {:.2f}, cross entropy {:.2f}, cpu {:.2f} min'.format(
                         i, (len(tra_list)*nr_slices_per_volume)/batch_size, batch_size, np.asscalar(loss), dice, cross_entropy, (time.time() - start_time)/60))
                 tra_loss.append(loss)
-                tra_dices.append(dice)
                 tra_ces.append(cross_entropy)
+                if(not(dice==-1)):
+                    tra_dices.append(dice)
+                    tra_thres.append(threshold)
             # End training loop
                 
 
@@ -198,7 +257,7 @@ class Trainer:
                 X_val, Y_val, M_val = batch
 
                 # ROI METHOD WERE WE PUT EVERY PIXEL OUTSIDE OF LIVER TO ZERO
-                if(target_class == 'lesion'):
+                if(target_class == 'lesion' and not(mask_name == None)):
                     X_val[np.where(M_val == 0)] = np.min(X_val)
 
                 # Pad X and crop Y for UNet, note that array dimensions change here!
@@ -225,9 +284,10 @@ class Trainer:
                     print ('batch {}/{}, {} slc, validation loss {:.2f}, threshold {:.2f}, dice {:.2f}, cross entropy {:.2f}, cpu {:.2f} min'.format(
                         i, (len(val_list)*nr_slices_per_volume)/batch_size, batch_size, np.asscalar(loss), threshold, dice, cross_entropy, (time.time() - start_time)/60))
                 val_loss.append(loss)
-                val_dices.append(dice)
                 val_ces.append(cross_entropy)
-                val_thres.append(threshold)
+                if(not(dice==-1)):
+                    val_dices.append(dice)
+                    val_thres.append(threshold)
             # End validation loop
 
 
