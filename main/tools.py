@@ -129,22 +129,24 @@ def show_preprocessing(batchGenerator, augmenter, aug_params, \
     plt.savefig('Preprocess.png')
 
 # Plot segmentation results
-def show_segmentation_prediction(trainer, network, threshold, val_list, batch_dir,
+def show_segmentation_prediction(trainer, network, mask_threshold, val_list, train_batch_dir,
                                  patch_size, out_size, img_center, target_class,
-                                 read_slices, slice_files, weight_balance, mask, mask_network):
+                                 read_slices, slice_files, weight_balance, mask_name, mask_network):
 
     nr_test_batches = 5 # batch_size per test
 
     # Define batch generator
-    batchGenerator = BatchGenerator(mask_network, threshold, val_list, val_list, batch_dir, target_class,
-                                    read_slices, slice_files, nr_slices_per_volume=1, group_percentages=(0.5, 0.5))
+    batchGenerator = BatchGenerator(val_list, val_list, mask_network, mask_name, mask_threshold,
+                                    train_batch_dir, target_class, read_slices, slice_files,
+                                    nr_slices_per_volume, patch_size, out_size, img_center,
+                                    group_percentages=(0.5, 0.5) 
 
     X_0 = []
     Y_0 = []
     target_preds = []
     val_preds = []
     val_labels = []
-    for i,batch in enumerate(batchGenerator.get_batch(batch_size = 1, train=True)):
+    for i,batch in enumerate(batchGenerator.get_batch(batch_size = 1, train=False)):
         X_val, Y_val, M_val = batch
 
         # Pad X and crop Y for UNet, note that array dimensions change here!
