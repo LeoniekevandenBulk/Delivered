@@ -110,7 +110,7 @@ def show_preprocessing(batchGenerator, augmenter, aug_params, \
             X_tra[np.where(M_tra == 0)] = np.min(X_tra)
             
         # Augment data batch
-        #X_tra, Y_tra, M_tra = augmenter.getAugmentation(X_tra, Y_tra, M_tra, aug_params)
+        X_tra, Y_tra, M_tra = augmenter.getAugmentation(X_tra, Y_tra, M_tra, aug_params)
 
         # Pad X and crop Y for UNet, note that array dimensions change here!
         X_tra = batchGenerator.pad(X_tra, patch_size, pad_value=np.min(X_tra))

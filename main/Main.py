@@ -76,14 +76,14 @@ img_center = [256, 256]
 learning_rate = 0.0001
 nr_epochs = 7 # 10
 batch_size = 2
-group_percentages = (0.0, 1.0)
+group_percentages = (0.3, 0.7)
 
 weight_balance_liver = 4
 weight_balance_lesion = 10
 
 max_rotation = 10
-liver_aug_params = [0.1,0.0,0.9]
-lesion_aug_params = [0.1,0.0,0.6]
+liver_aug_params = [0.2,0.2,0.2]
+lesion_aug_params = [0.2,0.2,0.2]
 
 
 # Theano tensors

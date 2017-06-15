@@ -208,7 +208,7 @@ class Trainer:
                 X_tra, Y_tra, M_tra = batch
 
                 # Augment data batch
-                #X_tra, Y_tra, M_tra = augmenter.getAugmentation(X_tra, Y_tra, M_tra, aug_params)
+                X_tra, Y_tra, M_tra = augmenter.getAugmentation(X_tra, Y_tra, M_tra, aug_params)
 
                 # ROI METHOD WERE WE PUT EVERY PIXEL OUTSIDE OF LIVER TO ZERO
                 if(target_class == 'lesion' and not(mask_name == None)):
