@@ -146,6 +146,7 @@ def show_segmentation_prediction(trainer, network, mask_threshold, val_list, tra
     target_preds = []
     val_preds = []
     val_labels = []
+    batch_size = 1
     for i,batch in enumerate(batchGenerator.get_batch(batch_size = 1, train=False)):
         X_val, Y_val, M_val = batch
 
@@ -154,10 +155,10 @@ def show_segmentation_prediction(trainer, network, mask_threshold, val_list, tra
         Y_val = batchGenerator.crop(Y_val, out_size)
         M_val = batchGenerator.crop(M_val, out_size)
 
-        prediction, loss, accuracy = trainer.validate_batch(network, X_val, Y_val, M_val, weight_balance)
+        prediction, loss, accuracy = trainer.validate_batch(network, X_val, Y_val, M_val, weight_balance, target_class)
         prediction = prediction.reshape(batch_size, 1, out_size[0], out_size[1], 2)[:, :, :, :, 1]
 
-        pred_binary = (prediction[0,0,:,:] > threshold).astype(np.int32)
+        pred_binary = (prediction[0,0,:,:] > mask_threshold).astype(np.int32)
         # Find the biggest connected component in the liver segmentation
         if(target_class == 'liver'):
             pred_binary = batchGenerator.get_biggest_component(pred_binary)
