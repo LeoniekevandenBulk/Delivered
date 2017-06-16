@@ -1,4 +1,3 @@
-
 import os
 import numpy as np
 from PIL import Image
@@ -184,6 +183,65 @@ def show_segmentation_prediction(trainer, network, mask_threshold, val_list, tra
     plt.savefig('Validation_segmentation.png')
     #plt.pause(0.5)
 
+# Adds thresholded values to a histogram
+def addHistogram(pred, label, req_label_val, hist, steps=100):
+
+	# Boolean array to check what label the mask has
+	label_correct = (label == req_label_val)
+
+	for i in range(steps):
+		# Determine interval for threshold
+		val_min = (i*1.0)/100
+		val_max = val_min + 1.0/steps
+		
+		# Check what value in predictions lie in this range
+		in_range = (pred >= val_min) & (pred < val_max)
+
+		# Find values in range and with correct label
+		filter_pred = label_correct & in_range
+
+		# Increment score
+		hist[i] += np.sum(filter_pred)
+
+	return hist
+
+# FInd the best threshold given two distributions
+def findBestThreshold(zero_hist, ones_hist, zero_weight=1.0, ones_weight=1.0, steps=100):
+
+	# Basic values
+	zero_correct = 0
+	ones_correct = 100
+
+	# Parameters for best result
+	best_split = 0
+	best_threshold = 0
+	
+	# Iterate over all thresholds
+	for i in range(steps):
+		threshold = ((i+1)*1.0)/steps
+
+		# Determine new split
+		zero_correct = zero_correct + zero_hist[i]
+		ones_correct = ones_correct - ones_hist[i]
+
+		# Determine new score
+		cur_split = zero_correct*zero_weight + ones_correct*ones_weight
+	
+		# If best split so far, save it
+		if (cur_split > best_split):
+			best_split = cur_split		
+			best_threshold = threshold
+
+	return best_threshold
+
+def show_threshold_split(zero_hist, ones_hist, threshold, steps=100):
+    x = [(i*1.0)/steps for i in range(steps)]
+    plt.figure()
+    plt.plot(x, zero_hist, x, ones_hist)
+    plt.axvline(x=threshold)
+    plt.legend(["Label = 0", "Label = 1"])
+    plt.suptitle("Classification distribution and threshold", size=40)
+    plt.savefig('Distibution_with_threshold.png')
 
 def print_settings(train_liver, train_lesion, train_lesion_only,
                    load_liver_segmentation, liver_segmentation_name,

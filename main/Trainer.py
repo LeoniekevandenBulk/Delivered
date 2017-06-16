@@ -143,6 +143,10 @@ class Trainer:
         val_ces= []
         val_thres = []
 
+        # Histogram lists
+        zero_hist = [0 for _ in range(100)]
+        ones_hist = [0 for _ in range(100)]
+        
         print('Validate before training!')
         # Validation loop
         for i,batch in enumerate(batchGenerator.get_batch(batch_size, train=False)):
@@ -183,11 +187,24 @@ class Trainer:
                 val_dices.append(dice)
                 val_thres.append(threshold)
 
+            # Save info for threshold histogram
+            zero_hist = addHistogram(prediction, Y_val, 0, zero_hist)
+            ones_hist = addHistogram(prediction, Y_val, 1, ones_hist)
+
         # Average performance of batches and save
         val_loss_lst.append(np.mean(val_loss))
         val_dice_lst.append(np.mean(val_dices))
         val_ce_lst.append(np.mean(val_ces))
 
+        # Turn histograms into probabilities and determine threshold
+        sum_zero_hist = (sum(zero_hist)*1.0)/100
+        zero_hist = [(val*1.0)/sum_zero_hist for val in zero_hist]
+
+        sum_ones_hist = (sum(ones_hist)*1.0)/100
+        ones_hist = [(val*1.0)/sum_ones_hist for val in ones_hist]
+
+        threshold = findBestThreshold(zero_hist, ones_hist, 1.0, 1.0)
+        show_threshold_split(zero_hist, ones_hist, threshold)
 
         # Begin of training
         for epoch in range(nr_epochs):
