@@ -9,7 +9,7 @@ Evaluator
 class Evaluator:
 
     # Accumulate errors and thresholds over validation batches
-    def get_evaluation(self, targets, predicted):
+    def get_evaluation(self, targets, predicted, threshold):
 
         sum_dice = 0
         sum_threshold = 0
@@ -22,34 +22,26 @@ class Evaluator:
             target = targets[i, 0, :, :]
 
             # Calculate dice score
-            dice_error = self.get_dice_error(pred,target)
+            dice_error = self.get_dice_error(pred,target,threshold)
             sum_dice += dice_error[1]
             sum_threshold += dice_error[2]
 
             # Calculate cross-entropy
             sum_crossentropy += log_loss(target,pred)
 
-        return ([("dice", sum_dice/predicted.shape[0], sum_threshold/predicted.shape[0]),("cross_entropy", sum_crossentropy/predicted.shape[0])])
+        return ([("dice", sum_dice/predicted.shape[0]),("cross_entropy", sum_crossentropy/predicted.shape[0])])
          
     # Get dice error scores
-    def get_dice_error(self, pred, target):
+    def get_dice_error(self, pred, target, threshold):
         
         # Determine best dice for the prediction
-        best_dice = 0 
-        best_thres = 0
-        for threshold in [float(x)/100 for x in range(101)]:
-            
-            # Convert heatmap probabilities to binary prediction map via threshold value
-            prediction = (pred >= threshold).astype(int)
+        # Convert heatmap probabilities to binary prediction map via threshold value
+        prediction = (pred >= threshold).astype(int)
         
-            # Calculate dice score
-            if(target.min() == 0 and target.max() == 0):
-                dice = -1.0
-            else:
-                dice = metric.dc(prediction, target)
-            
-            if(dice > best_dice):
-                best_dice = dice
-                best_thres = threshold
+        # Calculate dice score
+        if(target.min() == 0 and target.max() == 0):
+            dice = -1.0
+        else:
+            dice = metric.dc(prediction, target)
                 
-        return ("dice", best_dice, best_thres)
+        return ("dice", dice, threshold)

@@ -135,17 +135,14 @@ class Trainer:
             show_preprocessing(batchGenerator, augmenter, aug_params,
                                patch_size, out_size, img_center, target_class, mask_name)
 
-
+        # Default threshold
+        threshold = 0.5
 
         # Start with validaiton for graph!
         val_loss= []
         val_dices= []
         val_ces= []
         val_thres = []
-
-        # Histogram lists
-        zero_hist = [0 for _ in range(100)]
-        ones_hist = [0 for _ in range(100)]
         
         print('Validate before training!')
         # Validation loop
@@ -172,9 +169,8 @@ class Trainer:
                 print ('batch {}/{}, X min {:.2f} max {:.2f}, Y min {:.2f} max {:.2f}, pred min {:.2f} max {:.2f}'.format(
                         i, (len(val_list)*nr_slices_per_volume)/batch_size, np.min(X_val), np.max(X_val), np.min(Y_val), np.max(Y_val),
                         np.min(prediction), np.max(prediction)))
-            error_report = evaluator.get_evaluation(Y_val, prediction)
+            error_report = evaluator.get_evaluation(Y_val, prediction, threshold)
             dice = error_report[0][1]
-            threshold = error_report[0][2]
             cross_entropy = error_report[1][1]
 
             # Report and save performance
@@ -187,24 +183,10 @@ class Trainer:
                 val_dices.append(dice)
                 val_thres.append(threshold)
 
-            # Save info for threshold histogram
-            zero_hist = addHistogram(prediction, Y_val, 0, zero_hist)
-            ones_hist = addHistogram(prediction, Y_val, 1, ones_hist)
-
         # Average performance of batches and save
         val_loss_lst.append(np.mean(val_loss))
         val_dice_lst.append(np.mean(val_dices))
         val_ce_lst.append(np.mean(val_ces))
-
-        # Turn histograms into probabilities and determine threshold
-        sum_zero_hist = (sum(zero_hist)*1.0)/100
-        zero_hist = [(val*1.0)/sum_zero_hist for val in zero_hist]
-
-        sum_ones_hist = (sum(ones_hist)*1.0)/100
-        ones_hist = [(val*1.0)/sum_ones_hist for val in ones_hist]
-
-        threshold = findBestThreshold(zero_hist, ones_hist, 1.0, 1.0)
-        show_threshold_split(zero_hist, ones_hist, threshold)
 
         # Begin of training
         for epoch in range(nr_epochs):
@@ -214,6 +196,11 @@ class Trainer:
             tra_loss = []
             tra_dices = []
             tra_ces = []
+
+            # Tracking parameters for dice
+            tp = 0.0
+            fp = 0.0
+            fn = 0.0
 
             # Generate training batch
             for i,batch in enumerate(batchGenerator.get_batch(batch_size, train=True)):
@@ -236,13 +223,20 @@ class Trainer:
                 #Train and return result for evaluation (reshape to out_size)
                 prediction, loss, accuracy = self.train_batch(unet, X_tra, Y_tra, M_tra, weight_balance, target_class)
                 prediction = prediction.reshape(batch_size, 1, out_size[0], out_size[1], 2)[:,:,:,:,1]
+
+                # Determine misclassifications for dice score
+                thresh_pred = (prediction >= threshold).astype(int)
+                
+                tp += np.sum( (thresh_pred == 1) & (Y_val == 1) )
+                fp += np.sum( (thresh_pred == 1) & (Y_val == 0) )
+                fn += np.sum( (thresh_pred == 0) & (Y_val == 1) )
                     
                 # Get Evaluation report
                 if i % 100 == 0:
                     print ('batch {}/{}, X min {:.2f} max {:.2f}, Y min {:.2f} max {:.2f}, pred min {:.2f} max {:.2f}'.format(
                         i, (len(tra_list)*nr_slices_per_volume)/batch_size, np.min(X_tra), np.max(X_tra), np.min(Y_tra), np.max(Y_tra),
                         np.min(prediction), np.max(prediction)))
-                error_report = evaluator.get_evaluation(Y_tra, prediction)
+                error_report = evaluator.get_evaluation(Y_tra, prediction, threshold)
                 dice = error_report[0][1]
                 cross_entropy = error_report[1][1]
 
@@ -255,14 +249,33 @@ class Trainer:
                 if(not(dice==-1)):
                     tra_dices.append(dice)
             # End training loop
-                
 
+            # Determine dice score over entire vaidation set
+            full_tra_dice = (2*tp)/(2*tp + fp + fn)  
+
+            print('Training had a mean dice score of {0} with threshold {1}'.format(full_tra_dice, threshold)
+
+
+            ###############################################
+            ###############################################
+
+
+                
             # Performance per validation batch
             val_loss= []
             val_dices= []
             val_ces= []
             val_thres = []
 
+            # Histogram lists
+            zero_hist = [0 for _ in range(100)]
+            ones_hist = [0 for _ in range(100)]
+
+            # Tracking parameters for dice
+            tp = 0.0
+            fp = 0.0
+            fn = 0.0
+            
             # Validation loop
             for i,batch in enumerate(batchGenerator.get_batch(batch_size, train=False)):
         
@@ -281,15 +294,21 @@ class Trainer:
                 # Get prediction on batch
                 prediction, loss, accuracy = self.validate_batch(unet, X_val, Y_val, M_val, weight_balance, target_class)
                 prediction = prediction.reshape(batch_size, 1, out_size[0], out_size[1], 2)[:, :, :, :, 1]
+
+                # Determine misclassifications for dice score
+                thresh_pred = (prediction >= threshold).astype(int)
+                
+                tp += np.sum( (thresh_pred == 1) & (Y_val == 1) )
+                fp += np.sum( (thresh_pred == 1) & (Y_val == 0) )
+                fn += np.sum( (thresh_pred == 0) & (Y_val == 1) )
                 
                 # Get evaluation report
                 if i % 100 == 0:
                     print ('batch {}/{}, X min {:.2f} max {:.2f}, Y min {:.2f} max {:.2f}, pred min {:.2f} max {:.2f}'.format(
                         i, (len(val_list)*nr_slices_per_volume)/batch_size, np.min(X_tra), np.max(X_tra), np.min(Y_val), np.max(Y_val),
                           np.min(prediction), np.max(prediction)))
-                error_report = evaluator.get_evaluation(Y_val, prediction)
+                error_report = evaluator.get_evaluation(Y_val, prediction, threshold)
                 dice = error_report[0][1]
-                threshold = error_report[0][2]
                 cross_entropy = error_report[1][1]
 
                 # Report and save performance
@@ -301,22 +320,47 @@ class Trainer:
                 if(not(dice==-1)):
                     val_dices.append(dice)
                     val_thres.append(threshold)
+
+                # Save info for threshold histogram
+                zero_hist = addHistogram(prediction, Y_val, 0, zero_hist)
+                ones_hist = addHistogram(prediction, Y_val, 1, ones_hist)
+        
             # End validation loop
+
+            # Turn histograms into probabilities and determine threshold
+            sum_zero_hist = (sum(zero_hist)*1.0)/100
+            zero_hist = [(val*1.0)/sum_zero_hist for val in zero_hist]
+
+            sum_ones_hist = (sum(ones_hist)*1.0)/100
+            ones_hist = [(val*1.0)/sum_ones_hist for val in ones_hist]
+
+            threshold = findBestThreshold(zero_hist, ones_hist, 1.0, 1.0)
+
+            # Determine dice score over entire vaidation set
+            full_val_dice = (2*tp)/(2*tp + fp + fn)
+                  
+            print('Validation had a mean dice score of {0} with threshold {1}'.format(full_val_dice, threshold)
+
+            ############################################    
 
 
             # Average performance of batches and save
             tra_loss_lst.append(np.mean(tra_loss))
-            tra_dice_lst.append(np.mean(tra_dices))
+            tra_dice_lst.append(full_tra_dice)
             tra_ce_lst.append(np.mean(tra_ces))
             val_loss_lst.append(np.mean(val_loss))
-            val_dice_lst.append(np.mean(val_dices))
+            val_dice_lst.append(full_val_dice)
             val_ce_lst.append(np.mean(val_ces))
 
             # If performance is best, save network
             if np.mean(val_loss) < best_val_loss:
                 best_val_loss = np.mean(val_loss)
-                best_val_threshold = np.mean(val_thres)
-                best_val_dice = np.mean(val_dices)
+                best_val_threshold = threshold
+                best_val_dice = full_val_dice
+                
+                # Save distribution of classification with threshold
+                show_threshold_split(zero_hist, ones_hist, threshold)
+                
                 # save networks
                 params = lasagne.layers.get_all_param_values(network)
                 np.savez(os.path.join('./', network_name + '_' + str(best_val_loss) + '_' + str(best_val_dice) + '_' + str(best_val_threshold) + '.npz'), params=params)
@@ -410,15 +454,15 @@ class Trainer:
         # plot learning curves
         tra_loss_plt, = plt.plot(range(len(tra_loss_lst)), tra_loss_lst, 'b')
         val_loss_plt, = plt.plot(range(len(val_loss_lst)), val_loss_lst, 'g')
-        #tra_dice_plt, = plt.plot(range(len(tra_dice_lst)), tra_dice_lst, 'b')
-        #val_dice_plt, = plt.plot(range(len(val_dice_lst)), val_dice_lst, 'g')
+        tra_dice_plt, = plt.plot(range(len(tra_dice_lst)), tra_dice_lst, 'r')
+        val_dice_plt, = plt.plot(range(len(val_dice_lst)), val_dice_lst, 'y')
         #tra_ce_plt, = plt.plot(range(len(tra_ce_lst)), tra_ce_lst, 'm')
         #val_ce_plt, = plt.plot(range(len(val_ce_lst)), val_ce_lst, 'r')
-        plt.xlabel('mini epoch')
-        plt.ylabel('loss')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
         plt.ylim([0,0.5])
-        plt.legend([tra_loss_plt, val_loss_plt], #, tra_ce_plt, val_ce_plt],
-               ['training loss', 'validation loss'], #, 'training cross_entropy', 'validation cross_entropy'],
+        plt.legend([tra_loss_plt, val_loss_plt, tra_dice_plt, val_dice_plt],
+               ['training loss', 'validation loss', 'training dice', 'validation dice'],
                loc='center left', bbox_to_anchor=(1, 0.5))
         plt.title('Best validation loss = {:.2f} with threshold {:.2f}'.format(best_val_loss,
                 best_val_threshold), size=40)

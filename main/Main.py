@@ -36,7 +36,7 @@ train_lesion_only = False # If put to True also put train_lesion to True!
 
 # Variables that define which network to load from file (or not)
 liver_segmentation_name = 'liver_network_LiTS_0.195079_0.939129878833_0.632622622623'
-load_liver_segmentation = True
+load_liver_segmentation = False
 
 lesion_detection_name = 'lesion_network_LiTS'
 load_lesion_detection = False
@@ -45,7 +45,7 @@ load_lesion_detection = False
 run_test = False
 
 # Read slices from file, names of the files to read slices from
-read_slices = True
+read_slices = False
 vol_tra_slices_name = 'vol_tra_slices.npy' #vol_tra_slices
 seg_tra_slices_name = 'seg_tra_slices.npy' #seg_tra_slices
 msk_tra_slices_name = 'msk_tra_slices.npy' #msk_tra_slices
@@ -67,7 +67,7 @@ depth = 5
 branching_factor = 6 # 2^6 filters for first level, 2^7 for second, etc.
 
 # Image dimensions
-patch_size = (650,650) #(690,690)?
+patch_size = (690,690)
 out_size = output_size_for_input\
     (patch_size, depth)
 img_center = [256, 256]
