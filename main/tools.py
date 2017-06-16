@@ -97,7 +97,7 @@ def show_volumes(vol_batch, seg_batch):
 
 # Plot the effect of padding and cropping on images and labels
 def show_preprocessing(batchGenerator, augmenter, aug_params, \
-                       patch_size, out_size, img_center, target_class):
+                       patch_size, out_size, img_center, target_class, mask_name):
 
     X_0 = []
     Y_0 = []
@@ -183,3 +183,49 @@ def show_segmentation_prediction(trainer, network, mask_threshold, val_list, tra
     plt.suptitle("Segmentation results for validation images ", size=40)
     plt.savefig('Validation_segmentation.png')
     #plt.pause(0.5)
+
+
+def print_settings(train_liver, train_lesion, train_lesion_only,
+                   load_liver_segmentation, liver_segmentation_name,
+                   read_slices, nr_slices_per_volume,
+                   show_segmentation_predictions,
+                   save_network_every_epoch,
+                   depth, branching_factor,
+                   patch_size, out_size, img_center,
+                   learning_rate, nr_epochs, batch_size, group_percentages,
+                   weight_balance_liver, weight_balance_lesion,
+                   max_rotation, liver_aug_params, lesion_aug_params):
+    print("train_liver = " + str(train_liver))
+    print("train_lesion = " + str(train_lesion))
+    print("train_lesion_only = " + str(train_lesion_only) + "\n")
+
+    print("load_liver_segmentation = " + str(load_liver_segmentation))
+    print("liver_segmentation = " + liver_segmentation_name + "\n")
+
+    print("read_slices = " + str(read_slices))
+    print("nr_slices_per_volume = " + str(nr_slices_per_volume) + "\n")
+
+    print("show_segmentation_predictions = " + str(show_segmentation_predictions) + "\n")
+
+    print("save_network_every_epoch = " + str(save_network_every_epoch) + "\n")
+
+    print("depth = " + str(depth))
+    print("branching_factor = " + str(branching_factor) + "\n")
+
+    print("patch_size = " + str(patch_size))
+    print("out_size = " + str(out_size))
+    print("img_center = " + str(img_center) + "\n")
+
+    print("learning_rate = " + str(learning_rate))
+    print("nr_epochs = " + str(nr_epochs))
+    print("batch_size = " + str(batch_size))
+    print("group_percentages = " + str(group_percentages) + "\n")
+
+    print("weight_balance_liver = " + str(weight_balance_liver))
+    print("weight_balance_lesion = " + str(weight_balance_lesion) + "\n")
+
+    print("max_rotation = " + str(max_rotation))
+    print("liver_aug_params = " + str(liver_aug_params))
+    print("lesion_aug_params = " + str(lesion_aug_params) + "\n")
+
+    print("read_slices = " + str(read_slices) + "\n")

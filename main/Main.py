@@ -73,8 +73,8 @@ out_size = output_size_for_input\
 img_center = [256, 256]
 
 # Training
-learning_rate = 0.0001
-nr_epochs = 7 # 10
+learning_rate = 0.001
+nr_epochs = 15 # 10
 batch_size = 2
 group_percentages = (0.3, 0.7)
 
@@ -91,6 +91,19 @@ inputs = T.ftensor4('X')
 targets = T.itensor4('Y')
 weights = T.ftensor4('W')
 
+'''
+Print important variables/settings
+'''
+print_settings(train_liver, train_lesion, train_lesion_only,
+                load_liver_segmentation, liver_segmentation_name,
+                read_slices, nr_slices_per_volume,
+                show_segmentation_predictions,
+                save_network_every_epoch,
+                depth, branching_factor,
+                patch_size, out_size, img_center,
+                learning_rate, nr_epochs, batch_size, group_percentages,
+                weight_balance_liver, weight_balance_lesion,
+                max_rotation, liver_aug_params, lesion_aug_params )
 
 '''
 Train data loading
