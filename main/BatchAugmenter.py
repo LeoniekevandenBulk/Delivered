@@ -59,10 +59,11 @@ class BatchAugmenter:
         return X+noise
 
     # Main function to apply all augmentations to a batch depending on augment_params    
-    def getAugmentation(self, img_batch, img_labels, img_masks, augment_params, max_rotation=10, gauss_avg = 0, gauss_std=10):
+    def getAugmentation(self, img_batch, img_labels, img_masks, augment_params, max_rotation=10, gauss_avg = 0, gauss_percent=0.05):
         augmented_img_batch = np.zeros(np.shape(img_batch))
         augmented_img_labels = np.zeros(np.shape(img_labels))
         augmented_img_masks = np.zeros(np.shape(img_masks))
+	gauss_std=(gauss_percent*(np.max(img_batch)-np.min(img_batch)))
         
         for i in range(np.shape(img_batch)[0]):
             X = np.squeeze(img_batch[i,:,:,:])
@@ -77,8 +78,8 @@ class BatchAugmenter:
                 X,Y,M = self.get_rnd_rotation(X,Y,M,max_rotation)
                 Y = np.round(Y)
                 M = np.round(M)
-            #if elastic:
-                #X,Y = self.get_rnd_elastic(X,Y)
+            if elastic:
+                X,Y = self.get_rnd_elastic(X,Y)
 
             if gauss:
                 # Not applied to the labels; we're not actually creating lesions, just adding noise to the input
