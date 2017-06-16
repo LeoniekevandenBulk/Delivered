@@ -133,7 +133,7 @@ class Trainer:
         if test_preprocessing:
             print ('Show preprocessed slices')
             show_preprocessing(batchGenerator, augmenter, aug_params,
-                               patch_size, out_size, img_center, target_class)
+                               patch_size, out_size, img_center, target_class, mask_name)
 
 
 
@@ -155,7 +155,7 @@ class Trainer:
                 X_val[np.where(M_val == 0)] = np.min(X_val)
 
             # Pad X and crop Y for UNet, note that array dimensions change here!
-            X_val = batchGenerator.pad(X_val, patch_size, pad_value=np.min(X_tra))
+            X_val = batchGenerator.pad(X_val, patch_size, pad_value=np.min(X_val))
             Y_val = batchGenerator.crop(Y_val, out_size)
             M_val = batchGenerator.crop(M_val, out_size)
                 
@@ -166,7 +166,7 @@ class Trainer:
             # Get evaluation report
             if i % 100 == 0:
                 print ('batch {}/{}, X min {:.2f} max {:.2f}, Y min {:.2f} max {:.2f}, pred min {:.2f} max {:.2f}'.format(
-                        i, (len(val_list)*nr_slices_per_volume)/batch_size, np.min(X_tra), np.max(X_tra), np.min(Y_val), np.max(Y_val),
+                        i, (len(val_list)*nr_slices_per_volume)/batch_size, np.min(X_val), np.max(X_val), np.min(Y_val), np.max(Y_val),
                         np.min(prediction), np.max(prediction)))
             error_report = evaluator.get_evaluation(Y_val, prediction)
             dice = error_report[0][1]
@@ -184,9 +184,6 @@ class Trainer:
                 val_thres.append(threshold)
 
         # Average performance of batches and save
-        tra_loss_lst.append(np.mean(tra_loss))
-        tra_dice_lst.append(np.mean(tra_dices))
-        tra_ce_lst.append(np.mean(tra_ces))
         val_loss_lst.append(np.mean(val_loss))
         val_dice_lst.append(np.mean(val_dices))
         val_ce_lst.append(np.mean(val_ces))
@@ -208,7 +205,7 @@ class Trainer:
                 X_tra, Y_tra, M_tra = batch
 
                 # Augment data batch
-                X_tra, Y_tra, M_tra = augmenter.getAugmentation(X_tra, Y_tra, M_tra, aug_param, gauss_percent=0.05)
+                X_tra, Y_tra, M_tra = augmenter.getAugmentation(X_tra, Y_tra, M_tra, aug_params, gauss_percent=0.05)
 
                 # ROI METHOD WERE WE PUT EVERY PIXEL OUTSIDE OF LIVER TO ZERO
                 if(target_class == 'lesion' and not(mask_name == None)):
@@ -240,7 +237,6 @@ class Trainer:
                 tra_ces.append(cross_entropy)
                 if(not(dice==-1)):
                     tra_dices.append(dice)
-                    tra_thres.append(threshold)
             # End training loop
                 
 
@@ -261,7 +257,7 @@ class Trainer:
                     X_val[np.where(M_val == 0)] = np.min(X_val)
 
                 # Pad X and crop Y for UNet, note that array dimensions change here!
-                X_val = batchGenerator.pad(X_val, patch_size, pad_value=np.min(X_tra))
+                X_val = batchGenerator.pad(X_val, patch_size, pad_value=np.min(X_val))
                 Y_val = batchGenerator.crop(Y_val, out_size)
                 M_val = batchGenerator.crop(M_val, out_size)
                 
