@@ -256,7 +256,7 @@ class Trainer:
             # Determine dice score over entire vaidation set
             full_tra_dice = (2*tp)/(2*tp + fp + fn)  
 
-            print('Training had a mean dice score of {0} with threshold {1}'.format(full_tra_dice, threshold)
+            print('Training had a mean dice score of {0} with threshold {1}'.format(full_tra_dice, threshold))
 
 
             ###############################################
@@ -342,7 +342,7 @@ class Trainer:
             # Determine dice score over entire vaidation set
             full_val_dice = (2*tp)/(2*tp + fp + fn)
                   
-            print('Validation had a mean dice score of {0} with threshold {1}'.format(full_val_dice, threshold)
+            print('Validation had a mean dice score of {0} with threshold {1}'.format(full_val_dice, threshold))
 
             ############################################    
 
