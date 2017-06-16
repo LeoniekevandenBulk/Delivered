@@ -187,6 +187,9 @@ class Trainer:
         val_loss_lst.append(np.mean(val_loss))
         val_dice_lst.append(np.mean(val_dices))
         val_ce_lst.append(np.mean(val_ces))
+        tra_loss_lst.append(np.mean(val_loss))
+        tra_dice_lst.append(full_val_dice)
+        tra_ce_lst.append(np.mean(val_ces))
 
         # Begin of training
         for epoch in range(nr_epochs):
