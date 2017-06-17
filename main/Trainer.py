@@ -143,6 +143,11 @@ class Trainer:
         val_dices= []
         val_ces= []
         val_thres = []
+
+        # Tracking parameters for dice
+        tp = 0.0
+        fp = 0.0
+        fn = 0.0
         
         print('Validate before training!')
         # Validation loop
@@ -163,7 +168,14 @@ class Trainer:
             # Get prediction on batch
             prediction, loss, accuracy = self.validate_batch(unet, X_val, Y_val, M_val, weight_balance, target_class)
             prediction = prediction.reshape(batch_size, 1, out_size[0], out_size[1], 2)[:, :, :, :, 1]
+
+            # Determine misclassifications for dice score
+            thresh_pred = (prediction >= threshold).astype(int)
                 
+            tp += np.sum( (thresh_pred == 1) & (Y_val == 1) )
+            fp += np.sum( (thresh_pred == 1) & (Y_val == 0) )
+            fn += np.sum( (thresh_pred == 0) & (Y_val == 1) )
+            
             # Get evaluation report
             if i % 100 == 0:
                 print ('batch {}/{}, X min {:.2f} max {:.2f}, Y min {:.2f} max {:.2f}, pred min {:.2f} max {:.2f}'.format(
@@ -183,9 +195,12 @@ class Trainer:
                 val_dices.append(dice)
                 val_thres.append(threshold)
 
+        # Determine dice score over entire vaidation set
+        full_val_dice = (2*tp)/(2*tp + fp + fn)
+        
         # Average performance of batches and save
         val_loss_lst.append(np.mean(val_loss))
-        val_dice_lst.append(np.mean(val_dices))
+        val_dice_lst.append(full_val_dice)
         val_ce_lst.append(np.mean(val_ces))
         tra_loss_lst.append(np.mean(val_loss))
         tra_dice_lst.append(full_val_dice)
@@ -253,7 +268,7 @@ class Trainer:
                     tra_dices.append(dice)
             # End training loop
 
-            # Determine dice score over entire vaidation set
+            # Determine dice score over entire training set
             full_tra_dice = (2*tp)/(2*tp + fp + fn)  
 
             print('Training had a mean dice score of {0} with threshold {1}'.format(full_tra_dice, threshold))

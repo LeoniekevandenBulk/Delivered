@@ -45,7 +45,7 @@ load_lesion_detection = False
 run_test = False
 
 # Read slices from file, names of the files to read slices from
-read_slices = False
+read_slices = True
 vol_tra_slices_name = 'vol_tra_slices.npy' #vol_tra_slices
 seg_tra_slices_name = 'seg_tra_slices.npy' #seg_tra_slices
 msk_tra_slices_name = 'msk_tra_slices.npy' #msk_tra_slices
@@ -159,8 +159,8 @@ if train_liver:
                 slice_files, nr_slices_per_volume, weight_balance_liver)
     if show_segmentation_predictions:
         show_segmentation_prediction(trainer, liver_network, liver_threshold, val_list, train_batch_dir,
-                                     patch_size, out_size, img_center, "liver", read_slices, slice_files, 
-				     nr_slices_per_volume, weight_balance_liver, mask_name=None, mask_network=None)
+                                     patch_size, out_size, img_center, "liver", slice_files, nr_slices_per_volume, 
+				     weight_balance_liver, mask_name=None, mask_network=None, read_slices=True)
 
 if train_lesion:
     # Load or train lesion detection network
@@ -191,9 +191,9 @@ if train_lesion:
                 nr_epochs, batch_size, group_percentages, read_slices, slice_files, nr_slices_per_volume,
                 weight_balance_lesion, mask_network, mask_name, mask_threshold = liver_threshold)
     if show_segmentation_predictions:
-        show_segmentation_prediction(trainer, liver_network, liver_threshold, val_list, train_batch_dir,
-                                     patch_size, out_size, img_center, "liver", read_slices, slice_files, 
-				     nr_slices_per_volume, weight_balance_lesion, mask_name=None, mask_network=None)
+        show_segmentation_prediction(trainer, lesion_network, lesion_threshold, val_list, train_batch_dir,
+                                     patch_size, out_size, img_center, "lesion", slice_files, nr_slices_per_volume, 
+				     weight_balance_lesion, mask_name, mask_network, read_slices=True)
 
 '''
 Move on to testing and saving results

@@ -133,8 +133,8 @@ def show_preprocessing(batchGenerator, augmenter, aug_params, \
 
 # Plot segmentation results
 def show_segmentation_prediction(trainer, network, mask_threshold, val_list, train_batch_dir,
-                                 patch_size, out_size, img_center, target_class,
-                                 read_slices, slice_files, nr_slices_per_volume, weight_balance, mask_name, mask_network):
+                                 patch_size, out_size, img_center, target_class, slice_files,
+                                 nr_slices_per_volume, weight_balance, mask_name, mask_network, read_slices):
 
     nr_test_batches = 5 # batch_size per test
 
