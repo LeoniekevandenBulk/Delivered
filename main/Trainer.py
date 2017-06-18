@@ -245,9 +245,9 @@ class Trainer:
                 # Determine misclassifications for dice score
                 thresh_pred = (prediction >= threshold).astype(int)
                 
-                tp += np.sum( (thresh_pred == 1) & (Y_val == 1) )
-                fp += np.sum( (thresh_pred == 1) & (Y_val == 0) )
-                fn += np.sum( (thresh_pred == 0) & (Y_val == 1) )
+                tp += np.sum( (thresh_pred == 1) & (Y_tra == 1) )
+                fp += np.sum( (thresh_pred == 1) & (Y_ta == 0) )
+                fn += np.sum( (thresh_pred == 0) & (Y_tra == 1) )
                     
                 # Get Evaluation report
                 if i % 100 == 0:
@@ -371,7 +371,7 @@ class Trainer:
             val_ce_lst.append(np.mean(val_ces))
 
             # If performance is best, save network
-            if np.mean(val_loss) < best_val_loss:
+            if np.mean(val_loss) > best_val_loss:
                 best_val_loss = np.mean(val_loss)
                 best_val_threshold = threshold
                 best_val_dice = full_val_dice
