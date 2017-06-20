@@ -371,7 +371,7 @@ class Trainer:
             val_ce_lst.append(np.mean(val_ces))
 
             # If performance is best, save network
-            if np.mean(val_loss) > best_val_loss:
+            if np.mean(val_loss) < best_val_loss:
                 best_val_loss = np.mean(val_loss)
                 best_val_threshold = threshold
                 best_val_dice = full_val_dice
