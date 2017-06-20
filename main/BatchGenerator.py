@@ -105,8 +105,9 @@ class BatchGenerator:
                 if target_class == 'lesion':
                     
                     if self.mask_name == 'liver_network':
-                        #Reshape for correct input size for Unet
+                        #Reshape and Pad for correct input size for Unet
                         X_mask = vol_array[:, :, slice_nr].reshape(1,1,vol_array.shape[0],vol_array.shape[1])
+                        X_mask = self.pad(X_mask, self.patch_size, 0)
                         
                         # Predict liver mask
                         X_mask = self.mask_network.predict_fn((X_mask).astype(np.float32))
