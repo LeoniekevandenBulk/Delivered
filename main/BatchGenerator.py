@@ -122,7 +122,7 @@ class BatchGenerator:
                         
                         # Pad back to original image size
                         #X_mask = self.pad(X_mask, (512,512))
-                        X_mask = self.pad(X_mask, (512,512), self.img_center)
+                        X_mask = self.pad(X_mask, (512,512), 0)
                         X_mask = np.squeeze(X_mask)
                         
                     elif self.mask_name == 'ground_truth':
