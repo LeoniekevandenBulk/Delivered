@@ -34,7 +34,7 @@ class Tester:
         # Iterate over every test volume
         for i,i_vol in enumerate(test_list):
 
-            test_batch,affine_vol = collect_testing_slices(i_vol, test_batch_dir)
+            test_batch,affine_vol = self.collect_testing_slices(i_vol, test_batch_dir)
             classification = np.zeros((test_batch.shape[1], test_batch.shape[2], test_batch.shape[0]))
 
             # Iterate over each slice in volume
