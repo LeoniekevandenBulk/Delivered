@@ -33,7 +33,7 @@ class Tester:
         # Iterate over every test volume
         for i_vol in test_list:
 
-            test_batch = collect_testing_slices(i_vol, test_batch_dir)
+            test_batch,affine_vol = collect_testing_slices(i_vol, test_batch_dir)
             classification = np.zeros((test_batch[1], test_batch[2], test_batch[0]))
 
             # Iterate over each slice in volume
@@ -75,7 +75,7 @@ class Tester:
                 classification[:,:, j] = lesion_seg_mask
 
             # Turn image into .nii file
-            nii_classification = nib.Nifti1Image(classification, affine=affine_shape)
+            nii_classification = nib.Nifti1Image(classification, affine=affine_vol)
 
             # Save output to file
             nib.save(nii_classification, os.path.join(test_batch_dir, "results/test-segmentation-{}.nii".format(i_vol)))        
@@ -90,6 +90,7 @@ class Tester:
         # Reading in of the volume data (per volume)
         vol = test_batch_dir+"/test-volume-{0}.nii".format(i_vol)
         vol_proxy = nib.load(vol)
+        affine_vol = vol_proxy.affine
         vol_array = vol_proxy.get_data()
 
         # Apply normalization on the whole volume
@@ -103,7 +104,7 @@ class Tester:
         # Return as np array
         test_slices = np.asarray(test_slices)
 
-        return test_slices
+        return test_slices, affine_vol
 
 
     def pad(self, batch, target_size, pad_value = 0):
