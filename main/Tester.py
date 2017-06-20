@@ -32,14 +32,14 @@ class Tester:
         img_x, img_y = (512, 512)
 
         # Iterate over every test volume
-        for i_vol in test_list:
+        for i,i_vol in enumerate(test_list):
 
             test_batch,affine_vol = collect_testing_slices(i_vol, test_batch_dir)
-            classification = np.zeros((test_batch[1], test_batch[2], test_batch[0]))
+            classification = np.zeros((test_batch.shape[1], test_batch.shape[2], test_batch.shape[0]))
 
             # Iterate over each slice in volume
             for j,test_slice in enumerate(test_batch):
-                test_slice = test_slice.reshape(1, 1, test_slice[0], test_slice[1])
+                test_slice = test_slice.reshape(1, 1, test_slice.shape[0], test_slice.shape[1])
                 
                 # Pad test images
                 test_slice = self.pad(test_slice, self.patch_size, pad_value = np.min(test_slice))
@@ -79,7 +79,7 @@ class Tester:
             nii_classification = nib.Nifti1Image(classification, affine=affine_vol)
 
             # Save output to file
-            nib.save(nii_classification, os.path.join(test_batch_dir, "results/test-segmentation-{}.nii".format(i_vol)))        
+            nib.save(nii_classification, os.path.join(test_batch_dir, "results/test-segmentation-{0}.nii".format(i)))     
 
 
     # Load all test files from all test volumes in an npz file
@@ -89,7 +89,7 @@ class Tester:
         print("Get slices from volume #{}".format(i_vol))
 
         # Reading in of the volume data (per volume)
-        vol = test_batch_dir+"/test-volume-{0}.nii".format(i_vol)
+        vol = i_vol
         vol_proxy = nib.load(vol)
         affine_vol = vol_proxy.affine
         vol_array = vol_proxy.get_data()
