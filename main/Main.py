@@ -6,6 +6,7 @@ import nibabel as nib
 from math import ceil
 from Trainer import *
 from tools import *
+from Tester import *
 
 import random
 
@@ -205,7 +206,7 @@ if (run_test):
     print("Testing now...")
     
     # Folder location
-    test_dir='../data/LITS-Challenge-Test-Data'
+    test_dir='../data/Test-Data'
     test_list = sorted(get_file_list(test_dir, 'test-volume')[0])
 
     # Load test data from folder
