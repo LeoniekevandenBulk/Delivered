@@ -35,7 +35,7 @@ train_lesion = False
 train_lesion_only = False # If put to True also put train_lesion to True!
 
 # Variables that define which network to load from file (or not)
-liver_segmentation_name = 'liver_network_LiTS_0.195079_0.939129878833_0.632622622623'
+liver_segmentation_name = 'liver_network_LiTS'
 load_liver_segmentation = False
 
 lesion_detection_name = 'lesion_network_LiTS'
@@ -165,31 +165,34 @@ if train_liver:
 if train_lesion:
     # Load or train lesion detection network
     print("Lesion Network...")
+    
+    # Set relevant variables depending on whether liver network was trained
+    if train_liver:
+        mask_network = liver_network
+        mask_name = "liver_network"
+    elif train_lesion_only:
+        mask_network = None
+        liver_threshold = 0.5
+        mask_name = None 
+    else:
+        mask_network = None
+        liver_threshold = 0.5
+        mask_name = 'ground_truth'  # choose 'liver' or 'ground_truth'
+
+    # Train or read lesion network    
     if (load_lesion_detection):
         lesion_network = trainer.readNetwork(lesion_detection_name, patch_size,
                 inputs, targets, weights, depth, branching_factor)
         lesion_name = lesion_detection_name.split('_')
         lesion_threshold = float(lesion_name[-1])
     else:
-
-        # Set relevant variables depending on whether liver network was trained
-        if train_liver:
-            mask_network = liver_network
-            mask_name = "liver_network"
-        elif train_lesion_only:
-            mask_network = None
-            liver_threshold = 0.5
-            mask_name = None 
-        else:
-            mask_network = None
-            liver_threshold = 0.5
-            mask_name = 'ground_truth'  # choose 'liver' or 'ground_truth'
-
         lesion_network, lesion_threshold = trainer.trainNetwork(start_time, lesion_detection_name,
                 patch_size, depth, branching_factor, out_size, img_center, train_batch_dir, inputs,
                 targets, weights, "lesion", tra_list, val_list, lesion_aug_params, learning_rate,
                 nr_epochs, batch_size, group_percentages, read_slices, slice_files, nr_slices_per_volume,
                 weight_balance_lesion, mask_network, mask_name, mask_threshold = liver_threshold)
+
+    # Show segmentation predictions    
     if show_segmentation_predictions:
         show_segmentation_prediction(trainer, lesion_network, lesion_threshold, val_list, train_batch_dir,
                                      patch_size, out_size, img_center, "lesion", slice_files, nr_slices_per_volume, 

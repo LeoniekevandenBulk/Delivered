@@ -340,8 +340,8 @@ class Trainer:
                     val_thres.append(threshold)
 
                 # Save info for threshold histogram
-                zero_hist = addHistogram(prediction, Y_val, 0, zero_hist)
-                ones_hist = addHistogram(prediction, Y_val, 1, ones_hist)
+                zero_hist = addHistogram(prediction, Y_val, 0, zero_hist, target_class, M_val)
+                ones_hist = addHistogram(prediction, Y_val, 1, ones_hist, target_class, M_val)
         
             # End validation loop
 
@@ -387,7 +387,7 @@ class Trainer:
             if self.save_network_every_epoch:
                 params = lasagne.layers.get_all_param_values(network)
                 np.savez(
-                    os.path.join('./', network_name + '_mini_epoch' + str(epoch) + '_' + str(best_val_threshold) + '.npz'),
+                    os.path.join('./', network_name + '_autosave_epoch' + str(epoch) + '_' + str(best_val_loss) + '_' + str(best_val_dice) + '_' + str(best_val_threshold) + '.npz'),
                     params=params)
 
             np.savez('results', tra_loss_lst, tra_dice_lst, tra_ce_lst, val_loss_lst, val_dice_lst, val_ce_lst,

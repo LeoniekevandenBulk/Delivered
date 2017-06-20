@@ -150,6 +150,11 @@ def show_segmentation_prediction(trainer, network, mask_threshold, val_list, tra
     val_preds = []
     val_labels = []
     batch_size = 1
+
+    # Histogram lists
+    zero_hist = [0 for _ in range(100)]
+    ones_hist = [0 for _ in range(100)]
+    
     for i,batch in enumerate(batchGenerator.get_batch(batch_size = 1, train=True)):
         X_val, Y_val, M_val = batch
 
@@ -164,6 +169,24 @@ def show_segmentation_prediction(trainer, network, mask_threshold, val_list, tra
 
         prediction, loss, accuracy = trainer.validate_batch(network, X_val, Y_val, M_val, weight_balance, target_class)
         prediction = prediction.reshape(batch_size, 1, out_size[0], out_size[1], 2)[:, :, :, :, 1]
+
+
+        ##TEST PURPOSES##
+        zero_hist = addHistogram(prediction, Y_val, 0, zero_hist, target_class, M_val)
+        ones_hist = addHistogram(prediction, Y_val, 1, ones_hist, target_class, M_val)
+
+        sum_zero_hist = (sum(zero_hist)*1.0)/100
+        zero_hist = [(val*1.0)/sum_zero_hist for val in zero_hist]
+
+        sum_ones_hist = (sum(ones_hist)*1.0)/100
+        ones_hist = [(val*1.0)/sum_ones_hist for val in ones_hist]
+
+        mask_threshold = findBestThreshold(zero_hist, ones_hist, 1.0, 1.0)
+
+        # Save distribution of classification with threshold
+        show_threshold_split(zero_hist, ones_hist, mask_threshold)
+        ##TEST PURPOSES##
+
 
         pred_binary = (prediction[0,0,:,:] > mask_threshold).astype(np.int32)
         # Find the biggest connected component in the liver segmentation
@@ -184,10 +207,13 @@ def show_segmentation_prediction(trainer, network, mask_threshold, val_list, tra
     #plt.pause(0.5)
 
 # Adds thresholded values to a histogram
-def addHistogram(pred, label, req_label_val, hist, steps=100):
+def addHistogram(pred, label, req_label_val, hist, target_class, mask, steps=100):
 
 	# Boolean array to check what label the mask has
-	label_correct = (label == req_label_val)
+	if(target_class == 'liver' ):
+            label_correct = (label == req_label_val)
+        else:
+            label_correct = (label == req_label_val) & (mask > 0)
 
 	for i in range(steps):
 		# Determine interval for threshold
@@ -195,7 +221,7 @@ def addHistogram(pred, label, req_label_val, hist, steps=100):
 		val_max = val_min + 1.0/steps
 		
 		# Check what value in predictions lie in this range
-		in_range = (pred >= val_min) & (pred < val_max)
+                in_range = (pred >= val_min) & (pred < val_max)
 
 		# Find values in range and with correct label
 		filter_pred = label_correct & in_range
@@ -214,7 +240,7 @@ def findBestThreshold(zero_hist, ones_hist, zero_weight=1.0, ones_weight=1.0, st
 
 	# Parameters for best result
 	best_split = 0
-	best_threshold = 0
+	best_threshold = 0.5
 	
 	# Iterate over all thresholds
 	for i in range(steps):
@@ -232,6 +258,12 @@ def findBestThreshold(zero_hist, ones_hist, zero_weight=1.0, ones_weight=1.0, st
 			best_split = cur_split		
 			best_threshold = threshold
 
+                elif (cur_split == best_split and i < (steps/2)):
+                    best_threshold = threshold
+
+        if(best_threshold == 0 or best_threshold == 1):
+            best_threshold = 0.5
+            
 	return best_threshold
 
 def show_threshold_split(zero_hist, ones_hist, threshold, steps=100):
