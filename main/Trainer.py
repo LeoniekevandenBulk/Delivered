@@ -246,7 +246,7 @@ class Trainer:
                 thresh_pred = (prediction >= threshold).astype(int)
                 
                 tp += np.sum( (thresh_pred == 1) & (Y_tra == 1) )
-                fp += np.sum( (thresh_pred == 1) & (Y_ta == 0) )
+                fp += np.sum( (thresh_pred == 1) & (Y_tra == 0) )
                 fn += np.sum( (thresh_pred == 0) & (Y_tra == 1) )
                     
                 # Get Evaluation report
