@@ -3,6 +3,7 @@ import random
 import nibabel as nib
 from skimage.measure import label
 from scipy.ndimage.morphology import binary_closing
+import os
 
 '''
 Tester
