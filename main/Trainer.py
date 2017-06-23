@@ -187,8 +187,8 @@ class Trainer:
 
             # Report and save performance
             if i % 100 == 0:
-               print ('batch {}/{}, {} slc, validation loss {:.2f}, threshold {:.2f}, dice {:.2f}, cross entropy {:.2f}, cpu {:.2f} min'.format(
-                   i, (len(val_list)*nr_slices_per_volume)/batch_size, batch_size, np.asscalar(loss), threshold, dice, cross_entropy, (time.time() - start_time)/60))
+               print ('batch {}/{}, {} slc, validation loss {:.2f}, time {:.2f} min'.format(
+                   i, (len(val_list)*nr_slices_per_volume)/batch_size, batch_size, np.asscalar(loss), (time.time() - start_time)/60))
             val_loss.append(loss)
             val_ces.append(cross_entropy)
             if(not(dice==-1)):
@@ -197,6 +197,7 @@ class Trainer:
 
         # Determine dice score over entire vaidation set
         full_val_dice = (2*tp)/(2*tp + fp + fn)
+        print('Validation had a mean dice score of {0} with threshold {1}'.format(full_val_dice, threshold))
         
         # Average performance of batches and save
         val_loss_lst.append(np.mean(val_loss))
@@ -258,10 +259,10 @@ class Trainer:
                 dice = error_report[0][1]
                 cross_entropy = error_report[1][1]
 
-                # Report and save performance
-                if i % 100 == 0:
-                    print ('batch {}/{}, {} slc, training loss {:.2f}, dice {:.2f}, cross entropy {:.2f}, cpu {:.2f} min'.format(
-                        i, (len(tra_list)*nr_slices_per_volume)/batch_size, batch_size, np.asscalar(loss), dice, cross_entropy, (time.time() - start_time)/60))
+            # Report and save performance
+            if i % 100 == 0:
+               print ('batch {}/{}, {} slc, validation loss {:.2f}, time {:.2f} min'.format(
+                   i, (len(tra_list)*nr_slices_per_volume)/batch_size, batch_size, np.asscalar(loss), (time.time() - start_time)/60))
                 tra_loss.append(loss)
                 tra_ces.append(cross_entropy)
                 if(not(dice==-1)):
@@ -329,10 +330,10 @@ class Trainer:
                 dice = error_report[0][1]
                 cross_entropy = error_report[1][1]
 
-                # Report and save performance
-                if i % 100 == 0:
-                    print ('batch {}/{}, {} slc, validation loss {:.2f}, threshold {:.2f}, dice {:.2f}, cross entropy {:.2f}, cpu {:.2f} min'.format(
-                        i, (len(val_list)*nr_slices_per_volume)/batch_size, batch_size, np.asscalar(loss), threshold, dice, cross_entropy, (time.time() - start_time)/60))
+            # Report and save performance
+            if i % 100 == 0:
+               print ('batch {}/{}, {} slc, validation loss {:.2f}, time {:.2f} min'.format(
+                   i, (len(val_list)*nr_slices_per_volume)/batch_size, batch_size, np.asscalar(loss), (time.time() - start_time)/60))
                 val_loss.append(loss)
                 val_ces.append(cross_entropy)
                 if(not(dice==-1)):
@@ -408,15 +409,9 @@ class Trainer:
 
         weights_map = np.ndarray(Y_tra.shape)
         weights_map.fill(1)
-        
-        #if(target_class == 'lesion'):
-            # MASK METHOD WERE WE PUT WEIGHTS OUTSIDE OF LIVER TO ZERO
-            #weights_map[np.where(M_tra == 0)] = 0
 
-            # ROI METHOD WERE WE PUT EVERY PIXEL OUTSIDE OF LIVER TO ZERO
-            #X_tra[np.where(M_tra == 0)] = np.min(X_tra)
-            
-        weights_map[np.where(Y_tra == 1)] = weight_balance # Labeled pixels can be weigthed more than non-lesion pixels
+        # Labeled pixels can be weigthed more than non-lesion pixels 
+        weights_map[np.where(Y_tra == 1)] = weight_balance 
 
 
         loss, l2_loss, accuracy, target_prediction, prediction = \
@@ -432,15 +427,9 @@ class Trainer:
 
         weights_map = np.ndarray(Y_val.shape)
         weights_map.fill(1)
-        
-        #if(target_class == 'lesion'):
-            # MASK METHOD WERE WE PUT WEIGHTS OUTSIDE OF LIVER TO ZERO
-            #weights_map[np.where(M_val == 0)] = 0
 
-            # ROI METHOD WERE WE PUT EVERY PIXEL OUTSIDE OF LIVER TO ZERO
-            #X_val[np.where(M_val == 0)] = np.min(X_val)
-            
-        weights_map[np.where(Y_val == 1)] = weight_balance # Labeled pixels can be weigthed more than non-lesion pixels
+        # Labeled pixels can be weigthed more than non-lesion pixels
+        weights_map[np.where(Y_val == 1)] = weight_balance 
 
         loss, l2_loss, accuracy, target_prediction, prediction = \
             unet.val_fn(X_val.astype(np.float32), Y_val.astype(np.int32), weights_map.astype(np.float32))
