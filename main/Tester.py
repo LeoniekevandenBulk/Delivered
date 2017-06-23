@@ -32,9 +32,9 @@ class Tester:
         img_x, img_y = (512, 512)
 
         # Iterate over every test volume
-        for i,i_vol in enumerate(test_list):
+        for i_vol in test_list:
 
-            test_batch,affine_vol = self.collect_testing_slices(i_vol, test_batch_dir)
+            test_batch,affine_vol,number = self.collect_testing_slices(i_vol, test_batch_dir)
             classification = np.zeros((test_batch.shape[1], test_batch.shape[2], test_batch.shape[0]))
 
             # Iterate over each slice in volume
@@ -79,14 +79,15 @@ class Tester:
             nii_classification = nib.Nifti1Image(classification, affine=affine_vol)
 
             # Save output to file
-            nib.save(nii_classification, os.path.join(test_batch_dir, "results/test-segmentation-{0}.nii".format(i)))     
+            nib.save(nii_classification, os.path.join(test_batch_dir, "results/test-segmentation-{0}.nii".format(number)))     
 
 
     # Load all test files from all test volumes in an npz file
     def collect_testing_slices(self, i_vol, test_batch_dir):
         test_slices = []
-       
-        print("Get slices from volume #{}".format(i_vol))
+        number = i_vol.split('-')[-1].split('.')[0]
+        
+        print("Get slices from volume #{0} with number {1}".format(i_vol, number))
 
         # Reading in of the volume data (per volume)
         vol = i_vol
@@ -105,7 +106,7 @@ class Tester:
         # Return as np array
         test_slices = np.asarray(test_slices)
 
-        return test_slices, affine_vol
+        return test_slices, affine_vol, number
 
 
     def pad(self, batch, target_size, pad_value = 0):
